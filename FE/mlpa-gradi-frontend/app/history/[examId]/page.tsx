@@ -1,18 +1,33 @@
 "use client";
 
-import React from "react";
-import { useParams } from "next/navigation";
+import React, { useEffect, useState } from "react";
+import { useParams, useSearchParams } from "next/navigation";
 import StatisticsDownload from "../../StatisticsDownload";
+import { examService } from "../../services/examService";
 
 const HistoryDetailPage: React.FC = () => {
     const params = useParams();
+    const searchParams = useSearchParams();
+
     const examId = params.examId as string;
+    const examCode = searchParams.get("code") || "";
 
-    // In a real app, we would look up the exam title using the ID.
-    // For now, we'll just display the ID or a placeholder.
-    const title = `시험 통계 (${examId})`;
+    const [examName, setExamName] = useState("");
 
-    return <StatisticsDownload examTitle={title} />;
+    useEffect(() => {
+        if (examCode) {
+            examService.getByCode(examCode)
+                .then(exam => setExamName(exam.examName))
+                .catch(err => console.error("Failed to fetch exam for title:", err));
+        }
+    }, [examCode]);
+
+    return (
+        <StatisticsDownload
+            examTitle={examName || "시험 통계"}
+            examCode={examCode}
+        />
+    );
 };
 
 export default HistoryDetailPage;

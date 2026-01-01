@@ -31,7 +31,9 @@ const ExamInput: React.FC = () => {
         removeSubQuestion,
         updateSubQuestion,
         insertSubQuestion,
-        handleStartGrading
+        handleStartGrading,
+        isLoading,
+        loadingMessage,
     } = useExamForm();
 
     return (
@@ -86,9 +88,10 @@ const ExamInput: React.FC = () => {
                 {/* 4. Action Button */}
                 <div className="mt-4 flex justify-center">
                     <Button
-                        label="채점 시작하기"
-                        className="whitespace-nowrap w-[240px] px-4 py-4 text-xl shadow cursor-pointer"
+                        label={isLoading ? loadingMessage : "채점 시작하기"}
+                        className={`whitespace-nowrap w-[300px] px-4 py-4 text-xl shadow ${isLoading ? "opacity-70 cursor-wait" : "cursor-pointer"}`}
                         onClick={handleStartGrading}
+                        disabled={isLoading}
                     />
                 </div>
 

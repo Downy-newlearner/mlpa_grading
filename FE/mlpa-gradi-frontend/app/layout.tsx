@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import AutoRefresh from "./components/AutoRefresh";
 
 export const metadata: Metadata = {
   title: "Gradi(MLPA)",
@@ -19,6 +20,7 @@ export default function RootLayout({
       <body
         className="antialiased"
       >
+        <AutoRefresh />
         {children}
       </body>
     </html>

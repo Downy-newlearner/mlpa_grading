@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Question, SubQuestion, UploadedFile, QuestionType } from "../types";
-import { examService } from "../services/examService";
+import { Question, SubQuestion, UploadedFile, QuestionType, BackendQuestion } from "../types";
+import { createExamSaga, ExamSagaContext } from "../services/examSaga";
 
 // Helper to generate IDs
 const createId = () => typeof window !== 'undefined' ? `${Date.now()}-${Math.random().toString(16).slice(2)}` : "server-id";
@@ -30,6 +30,10 @@ export const useExamForm = () => {
     const [examDate, setExamDate] = useState("");
     const [attendanceFile, setAttendanceFile] = useState<UploadedFile | null>(null);
     const [answerSheetFiles, setAnswerSheetFiles] = useState<UploadedFile[]>([]);
+
+    // 업로드 진행 상태
+    const [isLoading, setIsLoading] = useState(false);
+    const [loadingMessage, setLoadingMessage] = useState("");
 
     // Derived State
     const totalScore = useMemo(() => questions.reduce((acc, q) => acc + (Number(q.score) || 0), 0), [questions]);
@@ -123,10 +127,11 @@ export const useExamForm = () => {
             alert("시험 이름과 일시를 입력해주세요.");
             return;
         }
-        if (!attendanceFile) {
-            alert("출석부 파일을 업로드해주세요.");
-            return;
-        }
+        // Temporarily disabled for testing
+        // if (!attendanceFile) {
+        //     alert("출석부 파일을 업로드해주세요.");
+        //     return;
+        // }
 
         let hasInvalidQuestion = false;
         for (const q of questions) {
@@ -150,35 +155,72 @@ export const useExamForm = () => {
             return;
         }
 
-        try {
-            // 1. Create Exam
-            const { id: examId } = await examService.create({
-                examName: examTitle,
-                examDate: examDate,
-                code: createId(),
-            });
-
-            // 2. Upload Attendance
-            await examService.uploadAttendance(attendanceFile.file, examId);
-
-            // 3. Create Questions
-            await examService.createQuestions({ examId, questions });
-
-            // 4. SSE Connection
-            await examService.connectSSE(examId);
-
-            // 5. Presigned URLs
-            if (answerSheetFiles.length > 0) {
-                const fileNames = answerSheetFiles.map(f => f.name);
-                const urls = await examService.getPresignedUrls({ files: fileNames, examId });
-                console.log("Presigned URLs:", urls);
+        // ✅ 이미지 타입 사전 검증
+        const ALLOWED_TYPES = ["image/png", "image/jpg", "image/jpeg"];
+        if (answerSheetFiles.length > 0) {
+            const invalidFiles = answerSheetFiles.filter(
+                (f) => !ALLOWED_TYPES.includes(f.file.type)
+            );
+            if (invalidFiles.length > 0) {
+                alert(`지원하지 않는 이미지 형식입니다.\nPNG, JPG, JPEG만 허용됩니다.\n\n문제 파일: ${invalidFiles.map(f => f.name).join(", ")}`);
+                return;
             }
+        }
 
-            // Route
-            router.push(`/exam/${examId}/loading/student-id`);
+        // ✅ Transform frontend questions to backend format
+        const backendQuestions: BackendQuestion[] = [];
+        questions.forEach((q, qIndex) => {
+            if (q.subQuestions.length > 0) {
+                q.subQuestions.forEach((sq, sqIndex) => {
+                    backendQuestions.push({
+                        questionNumber: qIndex + 1,
+                        questionType: sq.type,
+                        subQuestionNumber: sqIndex + 1,
+                        answer: sq.text,
+                        answerCount: 1,
+                        point: Number(sq.score) || 0,
+                    });
+                });
+            } else {
+                backendQuestions.push({
+                    questionNumber: qIndex + 1,
+                    questionType: q.type,
+                    subQuestionNumber: null,
+                    answer: q.text,
+                    answerCount: 1,
+                    point: Number(q.score) || 0,
+                });
+            }
+        });
+
+        // ✅ Saga 패턴으로 실행
+        setIsLoading(true);
+        setLoadingMessage("준비 중...");
+
+        const sagaContext: ExamSagaContext = {
+            examName: examTitle,
+            examDate: examDate,
+            questions: backendQuestions,
+            attendanceFile: attendanceFile?.file || null,
+            answerSheetFiles: answerSheetFiles.map(f => ({ file: f.file, name: f.name })),
+            onProgress: setLoadingMessage,
+        };
+
+        const saga = createExamSaga();
+
+        try {
+            await saga.execute(sagaContext);
+
+            setLoadingMessage("완료!");
+            setIsLoading(false);
+
+            alert(`시험이 성공적으로 생성되었습니다!\n시험 코드: ${sagaContext.examCode}`);
+            router.push(`/exam/${sagaContext.examId}/loading/student-id`);
         } catch (error) {
-            console.error(error);
-            alert("오류가 발생했습니다: " + String(error));
+            console.error("Saga failed:", error);
+            setIsLoading(false);
+            setLoadingMessage("");
+            alert("오류가 발생했습니다 (자동 롤백 완료): " + String(error));
         }
     };
 
@@ -203,6 +245,8 @@ export const useExamForm = () => {
         removeSubQuestion,
         updateSubQuestion,
         insertSubQuestion,
-        handleStartGrading
+        handleStartGrading,
+        isLoading,
+        loadingMessage,
     };
 };

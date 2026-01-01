@@ -1,0 +1,39 @@
+[33mcommit da1b3e6698713763e19c482eb0d49c43d4925ea5[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m
+Merge: 1d48ee7 0d2e997
+Author: 정성원 <cyberswoni@naver.com>
+Date:   Wed Dec 31 15:16:37 2025 +0900
+
+    feat: Main, ExamInput Page, FeedbackPage, DonePage,
+        HistoryExamSelect, StatisticsDownload, examService
+
+[33mcommit 1d48ee7d99e992dab4622a82d9d889789078819e[m
+Author: 정성원 <cyberswoni@naver.com>
+Date:   Wed Dec 31 15:05:12 2025 +0900
+
+    feat: Main, ExamInput Page, FeedbackPage, DonePage,
+    HistoryExamSelect, StatisticsDownload, examService
+
+[33mcommit 0d2e997f7017f486594cc55bc3d28854e47ac159[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m
+Author: Downy-newlearner <jdh251425142514@gmail.com>
+Date:   Wed Dec 24 20:33:01 2025 +0900
+
+    AI, FE, BE 디렉토리 생성
+
+[33mcommit e39ce33fdb8f92ec759062570580d35c2021fd48[m
+Merge: d19b400 da20d2d
+Author: Downy-newlearner <jdh251425142514@gmail.com>
+Date:   Wed Dec 24 20:25:45 2025 +0900
+
+    Merge branch 'main' of https://github.com/Downy-newlearner/mlpa_grading
+
+[33mcommit d19b400630ecba339975545f3a35d73a73fc1251[m
+Author: Downy-newlearner <jdh251425142514@gmail.com>
+Date:   Wed Dec 24 20:24:13 2025 +0900
+
+    first commit
+
+[33mcommit da20d2d96776fdfd3616ad63dd182c72d8589d2f[m
+Author: Downy-newlearner <jdh251425142514@gmail.com>
+Date:   Wed Dec 24 20:21:10 2025 +0900
+
+    first commit

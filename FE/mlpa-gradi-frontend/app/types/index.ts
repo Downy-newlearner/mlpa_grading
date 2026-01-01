@@ -24,13 +24,23 @@ export interface ExamHistoryItem {
     examId: string | number;
     examName: string;
     examDate: string;
-    code?: string;
+    examCode?: string;
+}
+
+// Backend Question format (matches Question.java entity)
+export interface BackendQuestion {
+    questionNumber: number;
+    questionType: string;
+    subQuestionNumber: number | null;
+    answer: string;
+    answerCount: number;
+    point: number;
 }
 
 export interface CreateExamRequest {
     examName: string;
     examDate: string;
-    code: string;
+    questions?: BackendQuestion[];
 }
 
 export interface CreateQuestionsRequest {
@@ -42,3 +52,4 @@ export interface PresignedUrlRequest {
     files: string[];
     examId: string;
 }
+
