@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 
 type FeedbackItem = {
     id: string;
@@ -11,9 +11,26 @@ const mockItems: FeedbackItem[] = [
     { id: "2", imageUrl: undefined, value: "" },
 ];
 
-const FeedbackPage: React.FC = () => {
-    // 데모용(상태/핸들링까지 필요하면 다음 단계에서 연결해드릴게요)
-    const items = mockItems;
+const FeedbackPage: React.FC<{ examCode?: string }> = ({ examCode = "ND1FHG" }) => {
+    const [items, setItems] = useState<FeedbackItem[]>([]);
+
+    useEffect(() => {
+        const fetchUnknownImages = async () => {
+            try {
+                const response = await fetch(`http://localhost:8080/api/reports/unknown-images/${examCode}`);
+                const urls: string[] = await response.json();
+                setItems(urls.map((url, index) => ({
+                    id: String(index),
+                    imageUrl: url,
+                    value: ""
+                })));
+            } catch (error) {
+                console.error("Failed to fetch unknown images:", error);
+            }
+        };
+
+        fetchUnknownImages();
+    }, [examCode]);
 
     return (
         <div className="relative mx-auto h-[1453px] w-[1152px] bg-white">

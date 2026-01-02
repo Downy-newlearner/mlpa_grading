@@ -4,11 +4,14 @@ import React, { useEffect, useState } from "react";
 
 interface StudentIdLoadingProps {
     examCode?: string;
+    totalStudents?: number;
+    onComplete?: () => void;
 }
 
-const StudentIdLoading: React.FC<StudentIdLoadingProps> = ({ examCode = "ND1FHG" }) => {
+const StudentIdLoading: React.FC<StudentIdLoadingProps> = ({ examCode = "ND1FHG", totalStudents = 40, onComplete }) => {
     const [seconds, setSeconds] = useState(0);
-    const [studentCount, setStudentCount] = useState(14);
+    const [studentCount, setStudentCount] = useState(0);
+    const [totalCount, setTotalCount] = useState(totalStudents);
     const [isVisible, setIsVisible] = useState(true);
 
     // Timer for elapsed seconds
@@ -19,24 +22,42 @@ const StudentIdLoading: React.FC<StudentIdLoadingProps> = ({ examCode = "ND1FHG"
         return () => clearInterval(interval);
     }, []);
 
-    // Simulation of student recognition (14 -> 15 -> 16... up to 40)
-    // This logic demonstrates the fade animation requested by the user.
+    // Real-time SSE Connection
     useEffect(() => {
-        const interval = setInterval(() => {
-            if (studentCount >= 40) return;
+        const eventSource = new EventSource(`http://localhost:8080/api/storage/sse/connect?examCode=${examCode}`);
 
-            // Start fade out
-            setIsVisible(false);
+        eventSource.addEventListener("recognition_update", (event: any) => {
+            const data = JSON.parse(event.data);
 
-            // Wait for fade out, then update and fade in
-            setTimeout(() => {
-                setStudentCount((prev) => (prev < 40 ? prev + 1 : prev));
-                setIsVisible(true);
-            }, 500); // 500ms matches the transition duration
-        }, 4000); // Change count every 4 seconds
+            // Only update if status is processing or completed
+            if (data.status === "processing" || data.status === "completed") {
+                setIsVisible(false);
+                setTimeout(() => {
+                    setStudentCount(data.idx || 0);
+                    // Update total if provided dynamically, otherwise keep prop/initial
+                    setTotalCount(data.total || totalStudents);
 
-        return () => clearInterval(interval);
-    }, [studentCount]);
+                    setIsVisible(true);
+
+                    // Check for completion
+                    if (data.status === "completed") {
+                        setTimeout(() => {
+                            if (onComplete) onComplete();
+                        }, 1000); // Short delay to show 100%
+                    }
+                }, 500);
+            }
+        });
+
+        eventSource.onerror = (error) => {
+            console.error("SSE Error:", error);
+            eventSource.close();
+        };
+
+        return () => {
+            eventSource.close();
+        };
+    }, [examCode, onComplete]);
 
     return (
         <div className="relative w-[1152px] h-[700px] bg-white mx-auto flex flex-col justify-center items-center">
@@ -93,7 +114,7 @@ const StudentIdLoading: React.FC<StudentIdLoadingProps> = ({ examCode = "ND1FHG"
                     </span>
                     명의 인식을 완료했어요!{" "}
                     <span className="inline-block font-bold bg-gradient-to-r from-[#AC5BF8] to-[#636ACF] bg-clip-text text-transparent">
-                        ({studentCount}/40)
+                        ({studentCount}/{totalCount})
                     </span>
                 </p>
 

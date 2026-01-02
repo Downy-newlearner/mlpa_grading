@@ -22,31 +22,12 @@ import java.util.concurrent.ConcurrentHashMap;
 public class StorageController {
 
     private final S3PresignService s3PresignService;
-
-    // SSE Emitters 저장소 (examCode -> Emitter)
-    private final Map<String, SseEmitter> sseEmitters = new ConcurrentHashMap<>();
+    private final com.dankook.mlpa_gradi.service.SseService sseService;
 
     // ✅ SSE 연결 (프론트가 먼저 연결)
     @GetMapping(value = "/sse/connect", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter connectSSE(@RequestParam("examCode") String examCode) {
-        SseEmitter emitter = new SseEmitter(60 * 60 * 1000L); // 1시간 타임아웃
-
-        sseEmitters.put(examCode, emitter);
-
-        emitter.onCompletion(() -> sseEmitters.remove(examCode));
-        emitter.onTimeout(() -> sseEmitters.remove(examCode));
-        emitter.onError((e) -> sseEmitters.remove(examCode));
-
-        // 연결 확인 메시지
-        try {
-            emitter.send(SseEmitter.event()
-                    .name("connected")
-                    .data(Map.of("examCode", examCode, "message", "SSE connected")));
-        } catch (IOException e) {
-            emitter.completeWithError(e);
-        }
-
-        return emitter;
+        return sseService.connect(examCode);
     }
 
     // ✅ 배치 이미지 Presigned URL 생성 (examCode 기반)
@@ -76,17 +57,5 @@ public class StorageController {
     public ResponseEntity<Map<String, String>> getAttendanceDownloadUrl(@RequestParam("examCode") String examCode) {
         String downloadUrl = s3PresignService.getAttendanceDownloadUrl(examCode);
         return ResponseEntity.ok(Map.of("url", downloadUrl));
-    }
-
-    // ✅ SSE로 이벤트 전송 (채점 진행 등)
-    public void sendSSEEvent(String examCode, String eventName, Object data) {
-        SseEmitter emitter = sseEmitters.get(examCode);
-        if (emitter != null) {
-            try {
-                emitter.send(SseEmitter.event().name(eventName).data(data));
-            } catch (IOException e) {
-                sseEmitters.remove(examCode);
-            }
-        }
     }
 }

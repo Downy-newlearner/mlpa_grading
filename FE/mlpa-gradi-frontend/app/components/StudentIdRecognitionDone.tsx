@@ -49,8 +49,18 @@ const StudentIdRecognitionDone: React.FC<StudentIdRecognitionDoneProps> = ({ onN
 
 
             {/* Result Message */}
-            <div className="absolute w-[215px] h-[43px] left-[calc(50%-215px/2+0.5px)] top-[487px] font-['Pretendard'] font-semibold text-[36px] leading-[43px] text-center text-[#5C5C5C]">
+            <div className="absolute w-[400px] left-[calc(50%-400px/2)] top-[487px] font-['Pretendard'] font-semibold text-[36px] leading-tight text-center text-[#5C5C5C] whitespace-pre-wrap">
                 학번 인식 완료!
+            </div>
+
+            {/* Next Button */}
+            <div className="absolute top-[580px] left-[calc(50%-150px)]">
+                <button
+                    onClick={onNext}
+                    className="w-[300px] h-[60px] bg-gradient-to-r from-[#AC5BF8] to-[#636ACF] rounded-[10px] text-white text-[24px] font-bold shadow-lg hover:opacity-90 transition-opacity"
+                >
+                    다음 단계로
+                </button>
             </div>
         </div>
     );

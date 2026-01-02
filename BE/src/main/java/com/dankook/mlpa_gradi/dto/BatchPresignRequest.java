@@ -11,6 +11,7 @@ import java.util.List;
 @NoArgsConstructor
 public class BatchPresignRequest {
     private String examCode;
+    private int total; // 전체 학생/페이지 수
     // studentId 제거 (처음에 없음)
     private List<ImageInfo> images;
 

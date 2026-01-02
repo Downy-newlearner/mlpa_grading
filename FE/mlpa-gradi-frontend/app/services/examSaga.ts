@@ -180,8 +180,9 @@ export const uploadImagesStep: SagaStep<ExamSagaContext> = {
         // Presigned URL 요청
         const batchRequest = {
             examCode: ctx.examCode,
+            total: ctx.answerSheetFiles.length,
             images: ctx.answerSheetFiles.map((f, idx) => ({
-                index: idx,
+                index: idx + 1, // 1-based index to match upload metadata
                 contentType: f.file.type || "image/jpeg",
                 filename: f.name,
             })),
@@ -198,7 +199,14 @@ export const uploadImagesStep: SagaStep<ExamSagaContext> = {
 
             if (file) {
                 ctx.onProgress?.(`이미지 업로드 중 (${i + 1}/${total})`);
-                await examService.uploadToPresignedUrl(urlInfo.url, file.file);
+
+                // Use the SAME content type as requested for presigning
+                const contentType = file.file.type || "image/jpeg";
+
+                await examService.uploadToPresignedUrl(urlInfo.url, file.file, contentType, {
+                    total: total,
+                    idx: i + 1 // 1-based index
+                });
 
                 // 성공한 이미지 키 저장 (롤백용)
                 ctx.uploadedImageKeys.push(`uploads/${ctx.examCode}/${urlInfo.index}_${urlInfo.filename}`);

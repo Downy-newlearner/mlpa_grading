@@ -1,3 +1,11 @@
-.idea
-.vscode
-.mcp
+.idea/
+.vscode/
+.mcp/
+mcp/
+.ai/
+.gemini/
+*.iml
+*.iws
+*.ipr
+push_error.txt
+**/application-local.yml

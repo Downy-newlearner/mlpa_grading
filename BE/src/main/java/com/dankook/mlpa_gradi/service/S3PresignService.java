@@ -173,6 +173,9 @@ public class S3PresignService {
                                         .bucket(bucket)
                                         .key(key)
                                         .contentType(contentType.equals("image/jpg") ? "image/jpeg" : contentType)
+                                        .metadata(java.util.Map.of(
+                                                        "total", String.valueOf(req.getTotal()),
+                                                        "idx", String.valueOf(img.getIndex())))
                                         .build();
 
                         PutObjectPresignRequest presignRequest = PutObjectPresignRequest.builder()
@@ -290,5 +293,65 @@ public class S3PresignService {
                                         return presigner.presignGetObject(presignRequest).url().toString();
                                 })
                                 .toList();
+        }
+
+        /**
+         * ✅ 특정 시험의 인식되지 않은 학번 이미지(unknown_id) Presigned URL 목록 조회
+         */
+        public java.util.List<String> getUnknownIdImageUrls(String examCode) {
+                String folderPrefix = String.format("header/%s/unknown_id/", examCode);
+
+                software.amazon.awssdk.services.s3.model.ListObjectsV2Request listRequest = software.amazon.awssdk.services.s3.model.ListObjectsV2Request
+                                .builder()
+                                .bucket(bucket)
+                                .prefix(folderPrefix)
+                                .build();
+
+                software.amazon.awssdk.services.s3.model.ListObjectsV2Response listResponse = s3Client
+                                .listObjectsV2(listRequest);
+
+                return listResponse.contents().stream()
+                                .map(obj -> {
+                                        software.amazon.awssdk.services.s3.model.GetObjectRequest getObjectRequest = software.amazon.awssdk.services.s3.model.GetObjectRequest
+                                                        .builder()
+                                                        .bucket(bucket)
+                                                        .key(obj.key())
+                                                        .build();
+
+                                        software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest presignRequest = software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest
+                                                        .builder()
+                                                        .signatureDuration(java.time.Duration.ofMinutes(10))
+                                                        .getObjectRequest(getObjectRequest)
+                                                        .build();
+
+                                        return presigner.presignGetObject(presignRequest).url().toString();
+                                })
+                                .toList();
+        }
+
+        /**
+         * ✅ 특정 키에 대한 Presigned GET URL 생성 (AI 서버 또는 내부 확인용)
+         */
+        public String generatePresignedGetUrl(String key) {
+                if (key == null || key.isEmpty()) {
+                        return null;
+                }
+
+                try {
+                        GetObjectRequest getObjectRequest = GetObjectRequest.builder()
+                                        .bucket(bucket)
+                                        .key(key)
+                                        .build();
+
+                        GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
+                                        .signatureDuration(Duration.ofMinutes(10))
+                                        .getObjectRequest(getObjectRequest)
+                                        .build();
+
+                        return presigner.presignGetObject(presignRequest).url().toString();
+                } catch (Exception e) {
+                        System.err.println("❌ Failed to generate presigned URL for key: " + key);
+                        return null;
+                }
         }
 }

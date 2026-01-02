@@ -215,7 +215,7 @@ export const useExamForm = () => {
             setIsLoading(false);
 
             alert(`시험이 성공적으로 생성되었습니다!\n시험 코드: ${sagaContext.examCode}`);
-            router.push(`/exam/${sagaContext.examId}/loading/student-id`);
+            router.push(`/exam/${sagaContext.examId}/loading/student-id?examCode=${sagaContext.examCode}&total=${answerSheetFiles.length}`);
         } catch (error) {
             console.error("Saga failed:", error);
             setIsLoading(false);

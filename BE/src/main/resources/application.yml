@@ -1,4 +1,4 @@
-server:
+﻿server:
   port: 8080
   servlet:
     encoding:
@@ -6,13 +6,15 @@ server:
 
 app:
   frontend:
-    url: http://localhost:3000
+    url: ${FRONTEND_URL:http://localhost:3000}
 
 spring:
+  config:
+    import: "optional:file:application-aws.yml"
   datasource:
-    url: jdbc:mysql://16.184.60.125:3306/gradi?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
-    username: root
-    password: rootpassword
+    url: ${MYSQL_URL}
+    username: ${MYSQL_USER}
+    password: ${MYSQL_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
   jpa:
     hibernate:
@@ -22,35 +24,23 @@ spring:
         format_sql: true
         show_sql: true
 
-
 fastApi:
   service:
-    url: http://central-01.tcp.tunnel.elice.io:55638
-
-  # kafka:
-  #   bootstrap-servers: 16.184.60.125:9092
-  #   consumer:
-  #     group-id: grading-group
-  #     key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-  #     value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-  #   producer:
-  #     key-serializer: org.apache.kafka.common.serialization.StringSerializer
-  #     value-serializer: org.apache.kafka.common.serialization.StringSerializer
-  #   listener:
-  #     missing-topics-fatal: false
-
+    url: ${FASTAPI_URL}
 
 aws:
   s3:
-    bucket: gradibucket
+    bucket: ${aws.s3.bucket}
+  sqs:
+    queue-url: ${AWS_SQS_QUEUE_URL}
+  endpoint: ${AWS_ENDPOINT}
   credentials:
     access-key: ${AWS_ACCESS_KEY}
     secret-key: ${AWS_SECRET_KEY}
   region:
-    static: ap-northeast-2  # ?? ?? ??
+    static: ${AWS_REGION_STATIC:ap-northeast-2}
 
   sts:
-    account-id: 889389777460     # 본인 AWS 계정 ID
-    role-name: fastapi-upload-role
+    account-id: ${AWS_ACCOUNT_ID}
+    role-name: ${AWS_ROLE_NAME}
     region: ap-northeast-2
-

@@ -5,6 +5,7 @@ const API_BASE = "/api";
 // SSE 연결을 위한 타입
 export interface BatchPresignRequest {
     examCode: string;
+    total: number;
     images: { index: number; contentType: string; filename: string }[];
 }
 
@@ -78,13 +79,20 @@ export const examService = {
     },
 
     // Presigned URL로 이미지 업로드
-    async uploadToPresignedUrl(presignedUrl: string, file: File): Promise<void> {
+    async uploadToPresignedUrl(presignedUrl: string, file: File, contentType: string, metadata?: { total?: number; idx?: number }): Promise<void> {
+        const headers: HeadersInit = {
+            "Content-Type": contentType,
+        };
+
+        if (metadata) {
+            if (metadata.total) headers["x-amz-meta-total"] = metadata.total.toString();
+            if (metadata.idx) headers["x-amz-meta-idx"] = metadata.idx.toString();
+        }
+
         const response = await fetch(presignedUrl, {
             method: "PUT",
             body: file,
-            headers: {
-                "Content-Type": file.type,
-            },
+            headers: headers,
         });
         if (!response.ok) throw new Error("Failed to upload to presigned URL");
     },

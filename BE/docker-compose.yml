@@ -19,5 +19,17 @@ services:
       --character-set-server=utf8mb4
       --collation-server=utf8mb4_unicode_ci
 
+  localstack:
+    image: localstack/localstack:latest
+    container_name: gradi-localstack
+    ports:
+      - "4566:4566"
+    environment:
+      - SERVICES=sqs,s3
+      - DEBUG=1
+      - DEFAULT_REGION=ap-northeast-2
+    volumes:
+      - "./init-scripts:/etc/localstack/init/ready.d"
+
 volumes:
   mysql-data:

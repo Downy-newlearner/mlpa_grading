@@ -112,6 +112,16 @@ export const QuestionItem: React.FC<QuestionItemProps> = (props) => {
                             className={`w-full border border-black p-2 rounded focus:outline-none focus:ring focus:ring-purple-300 bg-white ${q.subQuestions.length > 0 ? "bg-gray-100" : ""}`}
                             value={q.score}
                             readOnly={q.subQuestions.length > 0}
+                            onFocus={(e) => {
+                                if (q.score === 0 || q.score === "0") {
+                                    updateQuestion(q.id, { score: "" });
+                                }
+                            }}
+                            onBlur={(e) => {
+                                if (q.score === "" || q.score === undefined) {
+                                    updateQuestion(q.id, { score: 0 });
+                                }
+                            }}
                             onChange={(e) => updateQuestion(q.id, { score: e.target.value })}
                         />
                     </div>

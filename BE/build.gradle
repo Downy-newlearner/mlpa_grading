@@ -1,6 +1,6 @@
 plugins {
     id 'java'
-    id 'org.springframework.boot' version '4.0.1'
+    id 'org.springframework.boot' version '3.4.1'
     id 'io.spring.dependency-management' version '1.1.7'
 }
 
@@ -32,6 +32,8 @@ dependencies {
 // ✅ AWS SDK v2
     implementation platform('software.amazon.awssdk:bom:2.25.38')
     implementation 'software.amazon.awssdk:s3'
+    implementation 'software.amazon.awssdk:sqs:2.25.38'
+    implementation 'software.amazon.awssdk:sts:2.25.38'
 
     // ✅ iText 8
     implementation 'com.itextpdf:itext-core:8.0.2'
@@ -41,6 +43,7 @@ dependencies {
     annotationProcessor 'org.projectlombok:lombok'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
     runtimeOnly 'com.mysql:mysql-connector-j'
 }
 

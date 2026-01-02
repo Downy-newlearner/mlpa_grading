@@ -36,4 +36,12 @@ out/
 /.nb-gradle/
 
 ### VS Code ###
-.vscode/
+
+### Logs and Secrets ###
+*.log
+application-aws.yml
+boot_error.log
+backend.log
+BE/ai/.env
+
+
