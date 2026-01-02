@@ -27,8 +27,6 @@
 *   **SQS 처리 개선**:
     *   `SqsListenerService`를 리팩토링하여 `event_type`에 따라 서로 다른 로직을 수행하도록 `switch` 문을 도입했습니다.
     *   **안전장치**: AI 서비스가 `status` 값을 보내지 않더라도 Backend에서 자동으로 주입하여 Frontend가 멈추지 않도록 조치했습니다.
-*   **포트 충돌 해결**:
-    *   8080 포트 좀비 프로세스 문제를 해결하고, 최종적으로 **8080 포트**를 사용하도록 설정했습니다.
 *   **CORS 설정**:
     *   Frontend(`http://localhost:3000`)에 대해 `allowCredentials(true)`를 포함한 CORS 정책을 적용하여 SSE 연결 안정을 확보했습니다.
 
