@@ -7,11 +7,27 @@
 
 # Logs
 *.log
-boot_error.log
-push.log
-push_error.txt
+*.txt
+!LICENSE*.txt
+!README*.txt
 
-# Secrets
+# Server logs
+BE/server_log*.txt
+BE/boot_error.log
+BE/backend_*.log
+FE/mlpa-gradi-frontend/tsc_output.txt
+
+# Secrets & Environment
 .env
 **/.env
+**/application-local.yml
 **/application-aws.yml
+
+# Build outputs
+BE/build/
+FE/mlpa-gradi-frontend/.next/
+FE/mlpa-gradi-frontend/node_modules/
+
+# Temporary files
+push_error.txt
+push.log

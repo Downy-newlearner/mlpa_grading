@@ -10,7 +10,7 @@ app:
 
 spring:
   config:
-    import: "optional:file:application-aws.yml"
+    import: "optional:file:application-aws.yml,optional:file:application-local.yml"
   datasource:
     url: ${MYSQL_URL}
     username: ${MYSQL_USER}
@@ -23,6 +23,10 @@ spring:
       hibernate:
         format_sql: true
         show_sql: true
+  servlet:
+    multipart:
+      max-file-size: 100MB
+      max-request-size: 200MB
 
 fastApi:
   service:
@@ -44,3 +48,7 @@ aws:
     account-id: ${AWS_ACCOUNT_ID}
     role-name: ${AWS_ROLE_NAME}
     region: ap-northeast-2
+
+ai:
+  server:
+    url: ${AI_SERVER_URL}

@@ -1,6 +1,5 @@
 package com.dankook.mlpa_gradi.service;
 
-import com.dankook.mlpa_gradi.controller.StorageController;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -82,96 +81,124 @@ public class SqsListenerService {
     private void processMessage(String body) throws Exception {
         Map<String, Object> event = objectMapper.readValue(body, Map.class);
 
-        String eventType = (String) event.getOrDefault("event_type", "STUDENT_ID_RECOGNITION");
+        String eventType = (String) event.getOrDefault("event_type",
+                event.getOrDefault("eventType", "STUDENT_ID_RECOGNITION"));
 
         switch (eventType) {
             case "STUDENT_ID_RECOGNITION":
-                handleStudentIdRecognition(event);
+            case "QUESTION_RECOGNITION":
+                handleRecognitionProgress(event);
+                break;
+            case "ATTENDANCE_UPLOAD":
+                log.info("📂 Attendance file upload event received. ExamCode: {}, URL: {}", event.get("examCode"),
+                        event.get("downloadUrl"));
+                break;
+            case "ERROR":
+                log.error("🚨 Error event received from AI Server: {}", event.get("message"));
+                String errorCode = (String) event.get("examCode");
+                sseService.sendEvent(errorCode, "error_occurred", event);
                 break;
             default:
-                log.warn("⚠️ Received unknown event type: {}", eventType);
+                log.warn("[WARN] Received unknown event type: {}", eventType);
         }
     }
 
-    private void handleStudentIdRecognition(Map<String, Object> event) throws Exception {
+    private void handleRecognitionProgress(Map<String, Object> event) throws Exception {
+        log.info("[SQS] Raw Event: {}", event);
+
         // Handle snake_case and camelCase for compatibility
-        String examCode = (String) event.getOrDefault("examCode", event.get("exam_code"));
+        String rawExamCode = (String) event.getOrDefault("examCode", event.get("exam_code"));
+        String examCode = rawExamCode != null ? rawExamCode.trim().toUpperCase() : null;
         String studentId = (String) event.getOrDefault("studentId", event.get("student_id"));
+        String filename = (String) event.getOrDefault("filename", event.get("fileName"));
 
-        // Handle index (can be integer or string)
-        Object indexObj = event.getOrDefault("idx", event.get("index"));
-        int idx = 0;
-        if (indexObj instanceof Integer) {
-            idx = (Integer) indexObj;
-        } else if (indexObj instanceof String) {
+        // Get or create session
+        SseService.SessionInfo session = sseService.getSession(examCode);
+        if (session == null) {
+            log.warn("[WARN] No session found for examCode: {}", examCode);
+            return;
+        }
+
+        // ==== DEDUPLICATION: Check if this file was already processed ====
+        if (filename != null && !filename.isEmpty()) {
+            if (session.processedFiles.contains(filename)) {
+                log.info("[SKIP] Duplicate file ignored: {} (already processed)", filename);
+                return; // Skip duplicate
+            }
+            session.processedFiles.add(filename);
+        }
+
+        // Use the count of unique processed files as the actual progress
+        int currentProgress = session.processedFiles.size();
+
+        // Total 처리
+        int total = 0;
+        Object totalObj = event.getOrDefault("total", null);
+        if (totalObj != null) {
             try {
-                idx = Integer.parseInt((String) indexObj);
-            } catch (NumberFormatException ignored) {
+                total = (int) Double.parseDouble(totalObj.toString());
+            } catch (Exception ignored) {
             }
         }
 
-        // Map to standardized keys for frontend
+        if (total <= 0) {
+            total = session.total;
+        } else {
+            session.total = total; // Update session total if provided
+        }
+
+        if (total > 0 && currentProgress > total) {
+            log.warn("[WARN] Progress ({}) exceeded total ({}). Clamping.", currentProgress, total);
+            currentProgress = total;
+        }
+
+        // Status 결정
+        String status = (String) event.getOrDefault("status", "processing");
+        if (total > 0 && currentProgress >= total) {
+            status = "completed";
+        }
+
+        // Update session
+        session.index = currentProgress;
+        session.status = status;
+        session.lastUpdateTime = System.currentTimeMillis();
+
+        // 데이터 표준화
         event.put("examCode", examCode);
-        event.put("idx", idx);
+        event.put("index", currentProgress);
+        event.put("total", total);
+        event.put("status", status);
 
-        // ✅ Inject 'status' for Frontend if missing
-        if (!event.containsKey("status")) {
-            int total = 40; // Default
-            Object totalObj = event.getOrDefault("total", 40);
-            if (totalObj instanceof Integer) {
-                total = (Integer) totalObj;
-            } else if (totalObj instanceof String) {
-                try {
-                    total = Integer.parseInt((String) totalObj);
-                } catch (NumberFormatException ignored) {
-                }
-            }
-            // Ensure total is in the event for frontend
-            event.put("total", total);
-
-            if (idx >= total && total > 0) {
-                event.put("status", "completed");
-            } else {
-                event.put("status", "processing");
-            }
-        }
+        log.info("[SYNC] {} -> {}/{} ({}) [unique files: {}]", examCode, currentProgress, total, status,
+                session.processedFiles.size());
 
         if (examCode != null) {
             // Case 1: "unknown_id" -> Generate URL from filename and save to memory
             if ("unknown_id".equals(studentId)) {
-                String filename = (String) event.get("filename");
                 if (filename != null) {
-                    // Start with basic presignedUrls if sent, otherwise generate
-                    List<String> urls = new java.util.ArrayList<>();
-
-                    // Assume S3 key structure: uploads/{examCode}/{filename}
-                    // Note: You might need to adjust the path if strictly defined elsewhere
-                    String s3Key = String.format("uploads/%s/%s", examCode, filename);
+                    String s3Key = String.format("header/%s/unknown_id/%s", examCode, filename);
                     String generatedUrl = s3PresignService.generatePresignedGetUrl(s3Key);
 
                     if (generatedUrl != null) {
+                        List<String> urls = new java.util.ArrayList<>();
                         urls.add(generatedUrl);
                         inMemoryReportRepository.saveUnknownImages(examCode, urls);
-                        log.info("💾 Generated & Saved URL for unknown_id: {} -> {}", filename, generatedUrl);
-
-                        // Add to event for frontend
+                        log.info("[SAVED] unknown_id: {} -> {}", filename, generatedUrl);
                         event.put("presignedUrls", urls);
                     }
                 }
-            }
-            // Case 2: Explicit presignedUrls (Backward compatibility)
-            else if (event.containsKey("presignedUrls")) {
+            } else if (event.containsKey("presignedUrls")) {
                 Object urlsObj = event.get("presignedUrls");
                 if (urlsObj instanceof List) {
                     List<String> urls = (List<String>) urlsObj;
                     inMemoryReportRepository.saveUnknownImages(examCode, urls);
-                    log.info("💾 Saved {} unknown images to memory from list", urls.size());
                 }
             }
 
             // Forward event to SSE emitters via SseService
+            log.info("[SSE] Broadcasting: {} - {}/{}", examCode, currentProgress, total);
+            sseService.updateProgress(examCode, currentProgress, total);
             sseService.sendEvent(examCode, "recognition_update", event);
-            log.info("📢 Broadcasted SSE event for exam {}: idx={}, studentId={}", examCode, idx, studentId);
         }
     }
 

@@ -105,19 +105,26 @@ public class ExamService {
         examRepository.deleteById(examId);
     }
 
-    // ✅ 시험 삭제 (Code 기반)
+    // ✅ 시험 삭제 (Code 기반) - Idempotent: 이미 삭제된 경우에도 에러 없이 성공
     public void deleteByCode(String examCode) {
-        String trimmedCode = examCode.trim();
+        String normalizedCode = examCode != null ? examCode.trim().toUpperCase() : "";
 
-        // 1. S3 데이터 삭제 (이미지 + 출석부)
-        s3PresignService.deleteByExamCode(trimmedCode);
+        // 1. S3 데이터 삭제 (이미지 + 출석부) - 실패해도 계속 진행
+        try {
+            s3PresignService.deleteByExamCode(normalizedCode);
+        } catch (Exception e) {
+            // S3 삭제 실패해도 DB 정리는 계속 진행
+        }
 
-        // 2. 해당 시험의 답안들 먼저 삭제 (Casacade가 안되어있으므로 명시적 삭제)
-        studentAnswerRepository.deleteByExamCode(trimmedCode);
+        // 2. 해당 시험의 답안들 먼저 삭제 (Cascade가 안되어있으므로 명시적 삭제)
+        try {
+            studentAnswerRepository.deleteByExamCode(normalizedCode);
+        } catch (Exception e) {
+            // 이미 삭제된 경우 무시
+        }
 
-        // 3. 시험 삭제
-        Exam exam = examRepository.findByExamCode(trimmedCode)
-                .orElseThrow(() -> new NoSuchElementException("Exam not found with code: " + trimmedCode));
-        examRepository.delete(exam);
+        // 3. 시험 삭제 - 존재하지 않으면 무시 (idempotent)
+        examRepository.findByExamCode(normalizedCode)
+                .ifPresent(examRepository::delete);
     }
 }

@@ -15,11 +15,18 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.http.HttpStatus;
 
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.LinkedHashMap;
+import lombok.extern.slf4j.Slf4j;
 
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/reports")
+@Slf4j
 public class ReportController {
 
     private final PdfService pdfService;
@@ -97,11 +104,52 @@ public class ReportController {
         return s3PresignService.getStudentImageUrls(examCode, studentId);
     }
 
-    /**
-     * ✅ 인식되지 않은 학번 이미지 S3 URL 목록 조회 (In-Memory SQS Data)
-     */
     @GetMapping("/unknown-images/{examCode}")
     public List<String> getUnknownImages(@PathVariable String examCode) {
-        return inMemoryReportRepository.getUnknownImages(examCode);
+        String normalizedCode = examCode.trim().toUpperCase();
+        log.info("📥 Request for unknown images: examCode={}", normalizedCode);
+
+        // 1. Get URLs from both sources
+        // Get a copy to avoid ConcurrentModificationException
+        List<String> memoryUrls = new ArrayList<>(inMemoryReportRepository.getUnknownImages(normalizedCode));
+        List<String> s3Urls = s3PresignService.getUnknownIdImageUrls(normalizedCode);
+
+        log.info("📊 Found {} from memory, {} from S3 for {}", memoryUrls.size(), s3Urls.size(), normalizedCode);
+
+        // 2. Deduplicate by decoded filename
+        Map<String, String> dedupMap = new LinkedHashMap<>();
+
+        // Add memory URLs first
+        for (String url : memoryUrls) {
+            String filename = extractAndDecodeFilename(url);
+            if (filename != null) {
+                dedupMap.put(filename, url);
+            }
+        }
+
+        // Add S3 URLs last (overwriting with fresh URLs if names match)
+        for (String url : s3Urls) {
+            String filename = extractAndDecodeFilename(url);
+            if (filename != null) {
+                dedupMap.put(filename, url);
+            }
+        }
+
+        List<String> result = new ArrayList<>(dedupMap.values());
+        log.info("✅ Returning {} unique unknown images for {}", result.size(), normalizedCode);
+        return result;
+    }
+
+    private String extractAndDecodeFilename(String url) {
+        if (url == null)
+            return null;
+        try {
+            String path = url.split("\\?")[0];
+            String filename = path.substring(path.lastIndexOf('/') + 1);
+            return URLDecoder.decode(filename, StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            log.warn("⚠️ Failed to extract/decode filename from URL: {}", url);
+            return null;
+        }
     }
 }

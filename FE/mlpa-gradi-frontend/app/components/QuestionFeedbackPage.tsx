@@ -6,10 +6,16 @@ import { useRouter } from "next/navigation";
 type FeedbackItem = {
     id: string;
     imageUrl?: string;
-    value: string;
+    questionNumber: string;  // 문항 번호
+    recognizedAnswer: string;  // 인식된 답
+    correctAnswer: string;  // 수정된 정답
 };
 
-const FeedbackPage: React.FC<{ examCode?: string }> = ({ examCode = "ND1FHG" }) => {
+interface QuestionFeedbackPageProps {
+    examCode?: string;
+}
+
+const QuestionFeedbackPage: React.FC<QuestionFeedbackPageProps> = ({ examCode = "UNKNOWN" }) => {
     const [items, setItems] = useState<FeedbackItem[]>([]);
     const [focusedIndex, setFocusedIndex] = useState(0);
     const [zoomedImage, setZoomedImage] = useState<string | null>(null);
@@ -17,45 +23,45 @@ const FeedbackPage: React.FC<{ examCode?: string }> = ({ examCode = "ND1FHG" }) 
     const [position, setPosition] = useState({ x: 0, y: 0 });
     const [isDragging, setIsDragging] = useState(false);
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
     const router = useRouter();
 
-    // ✅ Load and initialize items
+    // ✅ Load from API & localStorage draft
     useEffect(() => {
-        const fetchUnknownImages = async () => {
+        const fetchUnknownQuestions = async () => {
             try {
-                const response = await fetch(`/api/reports/unknown-images/${examCode}`);
-                if (!response.ok) throw new Error("Failed to fetch");
-                const urls: string[] = await response.json();
+                // TODO: Replace with actual API endpoint for unknown questions
+                const response = await fetch(`/api/reports/unknown-questions/${examCode}`);
+                if (!response.ok) {
+                    // If no unknown questions, show empty state
+                    setItems([]);
+                    return;
+                }
+                const data = await response.json();
 
-                const savedDraft = localStorage.getItem(`gradi_draft_${examCode}`);
+                const savedDraft = localStorage.getItem(`gradi_question_draft_${examCode}`);
                 const draftMap = savedDraft ? JSON.parse(savedDraft) : {};
 
-                const initializedItems = urls.map((url, index) => {
-                    // Extract and decode filename for matching with draft
-                    let filename = "unknown.jpg";
-                    try {
-                        const rawFilename = url.split('/').pop()?.split('?')[0] || "unknown.jpg";
-                        filename = decodeURIComponent(rawFilename);
-                    } catch (e) {
-                        filename = url.split('/').pop()?.split('?')[0] || "unknown.jpg";
-                    }
-
+                const initializedItems = data.map((item: any, index: number) => {
                     return {
                         id: String(index),
-                        imageUrl: url,
-                        value: draftMap[filename] || ""
+                        imageUrl: item.imageUrl,
+                        questionNumber: item.questionNumber || `Q${index + 1}`,
+                        recognizedAnswer: item.recognizedAnswer || "",
+                        correctAnswer: draftMap[item.questionNumber] || item.recognizedAnswer || ""
                     };
                 });
 
                 setItems(initializedItems);
             } catch (error) {
-                console.error("Failed to fetch unknown images:", error);
+                console.error("Failed to fetch unknown questions:", error);
+                setItems([]);
             }
         };
 
-        fetchUnknownImages();
+        fetchUnknownQuestions();
     }, [examCode]);
 
     // ✅ Keep localStorage in sync
@@ -63,20 +69,13 @@ const FeedbackPage: React.FC<{ examCode?: string }> = ({ examCode = "ND1FHG" }) 
         if (items.length === 0) return;
 
         const draft = items.reduce((acc, item) => {
-            if (item.imageUrl && item.value) {
-                try {
-                    const rawFilename = item.imageUrl.split('/').pop()?.split('?')[0] || "unknown.jpg";
-                    const filename = decodeURIComponent(rawFilename);
-                    acc[filename] = item.value;
-                } catch (e) {
-                    const filename = item.imageUrl.split('/').pop()?.split('?')[0] || "unknown.jpg";
-                    acc[filename] = item.value;
-                }
+            if (item.correctAnswer) {
+                acc[item.questionNumber] = item.correctAnswer;
             }
             return acc;
         }, {} as Record<string, string>);
 
-        localStorage.setItem(`gradi_draft_${examCode}`, JSON.stringify(draft));
+        localStorage.setItem(`gradi_question_draft_${examCode}`, JSON.stringify(draft));
     }, [items, examCode]);
 
     const handleKeyDown = (e: React.KeyboardEvent, index: number) => {
@@ -95,7 +94,7 @@ const FeedbackPage: React.FC<{ examCode?: string }> = ({ examCode = "ND1FHG" }) 
 
     const handleInputChange = (index: number, value: string) => {
         const newItems = [...items];
-        newItems[index].value = value;
+        newItems[index].correctAnswer = value;
         setItems(newItems);
     };
 
@@ -139,15 +138,56 @@ const FeedbackPage: React.FC<{ examCode?: string }> = ({ examCode = "ND1FHG" }) 
 
     const handleImageClick = (e: React.MouseEvent) => {
         e.stopPropagation();
-        // If scale is 1, zoom in to the clicked point
         if (zoomScale === 1) {
             const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
             const offsetX = (e.clientX - rect.left - rect.width / 2) * -2;
             const offsetY = (e.clientY - rect.top - rect.height / 2) * -2;
             setZoomScale(2);
             setPosition({ x: offsetX, y: offsetY });
-        } else {
-            // If already zoomed, maybe zoom more or just allow dragging
+        }
+    };
+
+    const handleSubmit = async () => {
+        if (isSubmitting) return;
+
+        // If no items, navigate to grading loading page
+        if (items.length === 0) {
+            router.push(`/exam/${examCode}/loading/grading`);
+            return;
+        }
+
+        setIsSubmitting(true);
+        const payload = {
+            examCode: examCode,
+            questions: items.map(item => ({
+                questionNumber: item.questionNumber,
+                correctAnswer: item.correctAnswer
+            }))
+        };
+
+        try {
+            // TODO: Replace with actual API endpoint
+            const res = await fetch("/api/question-feedback", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
+
+            if (res.ok) {
+                console.log("Question feedback submitted successfully");
+                localStorage.removeItem(`gradi_question_draft_${examCode}`);
+                // Navigate to grading loading page
+                router.push(`/exam/${examCode}/loading/grading`);
+            } else {
+                const errorText = await res.text();
+                console.error("Feedback error:", errorText);
+                alert("오류가 발생했습니다: " + errorText);
+            }
+        } catch (err) {
+            console.error(err);
+            alert("네트워크 오류가 발생했습니다.");
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -169,10 +209,10 @@ const FeedbackPage: React.FC<{ examCode?: string }> = ({ examCode = "ND1FHG" }) 
             <div className="pt-[100px] pb-6 flex justify-between items-end mb-4 px-6">
                 <div className="flex flex-col gap-1">
                     <h1 className="text-[40px] font-extrabold bg-gradient-to-r from-[#AC5BF8] to-[#636ACF] bg-clip-text text-transparent">
-                        학번 피드백
+                        문항 인식 피드백
                     </h1>
                     <p className="text-[18px] font-medium text-[#A0A0A0]">
-                        모델이 인식 중 불확실한 개체들을 사용자에게 피드백 받습니다.
+                        모델이 인식 중 불확실한 문항들을 사용자에게 피드백 받습니다.
                     </p>
                 </div>
                 <div className="bg-white/90 border border-[#AC5BF8]/20 px-5 py-3 rounded-2xl shadow-sm flex flex-col gap-1.5">
@@ -196,8 +236,8 @@ const FeedbackPage: React.FC<{ examCode?: string }> = ({ examCode = "ND1FHG" }) 
                 <div className="space-y-4">
                     {items.length === 0 ? (
                         <div className="flex flex-col items-center justify-center h-[400px] text-gray-400">
-                            <p className="text-2xl font-semibold">피드백이 필요한 항목이 없습니다.</p>
-                            <p className="mt-2 text-lg">모든 인식이 성공적으로 완료되었습니다.</p>
+                            <p className="text-2xl font-semibold">피드백이 필요한 문항이 없습니다.</p>
+                            <p className="mt-2 text-lg">모든 문항 인식이 성공적으로 완료되었습니다.</p>
                         </div>
                     ) : (
                         items.map((item, index) => (
@@ -227,9 +267,8 @@ const FeedbackPage: React.FC<{ examCode?: string }> = ({ examCode = "ND1FHG" }) 
                                         <div className="relative w-full h-full">
                                             <img
                                                 src={item.imageUrl}
-                                                alt={`Feedback item ${index + 1}`}
+                                                alt={`Question ${index + 1}`}
                                                 onError={(e) => {
-                                                    // Handle broken image
                                                     (e.currentTarget as HTMLImageElement).src = "";
                                                     (e.currentTarget as HTMLImageElement).alt = "이미지 로드 실패";
                                                 }}
@@ -237,14 +276,14 @@ const FeedbackPage: React.FC<{ examCode?: string }> = ({ examCode = "ND1FHG" }) 
                                             />
                                             <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 flex items-center justify-center transition-colors">
                                                 <span className="opacity-0 group-hover:opacity-100 bg-black/50 text-white px-3 py-1 rounded-full text-xs transition-opacity font-bold">
-                                                    클릭하여 피드백 모드
+                                                    클릭하여 확대
                                                 </span>
                                             </div>
                                         </div>
                                     ) : (
                                         <div className="flex flex-col items-center gap-2">
-                                            <span className="text-3xl">⚠️</span>
-                                            <div className="text-gray-400 font-medium text-sm">이미지 조회가 불가능합니다</div>
+                                            <span className="text-3xl">📝</span>
+                                            <div className="text-gray-400 font-medium text-sm">문항 {item.questionNumber}</div>
                                         </div>
                                     )}
                                 </div>
@@ -252,7 +291,7 @@ const FeedbackPage: React.FC<{ examCode?: string }> = ({ examCode = "ND1FHG" }) 
                                 <div className="flex-1 ml-12">
                                     <div className="flex justify-between items-center mb-4">
                                         <h3 className={`text-lg font-bold ${focusedIndex === index ? "bg-gradient-to-r from-[#AC5BF8] to-[#636ACF] bg-clip-text text-transparent" : "text-gray-400"}`}>
-                                            항목 #{index + 1}
+                                            문항 #{item.questionNumber}
                                         </h3>
                                         {focusedIndex === index && (
                                             <span className="text-[#AC5BF8] text-xs font-bold animate-pulse">
@@ -261,17 +300,21 @@ const FeedbackPage: React.FC<{ examCode?: string }> = ({ examCode = "ND1FHG" }) 
                                         )}
                                     </div>
                                     <div className="space-y-3">
+                                        <div className="flex items-center gap-4">
+                                            <span className="text-sm text-gray-500 w-24">인식된 답:</span>
+                                            <span className="text-lg font-semibold text-gray-700">{item.recognizedAnswer || "-"}</span>
+                                        </div>
                                         <label className={`text-base font-bold ${focusedIndex === index ? "bg-gradient-to-r from-[#AC5BF8] to-[#636ACF] bg-clip-text text-transparent" : "text-gray-700"}`}>
-                                            인식된 데이터를 수정해주세요
+                                            정답을 수정해주세요
                                         </label>
                                         <input
                                             ref={(el) => { inputRefs.current[index] = el; }}
                                             type="text"
-                                            value={item.value}
+                                            value={item.correctAnswer}
                                             onChange={(e) => handleInputChange(index, e.target.value)}
                                             onKeyDown={(e) => handleKeyDown(e, index)}
                                             onFocus={() => setFocusedIndex(index)}
-                                            placeholder="학번을 입력하세요 (ex: 32204077)"
+                                            placeholder="정답을 입력하세요 (ex: 1, 2, 3, 4, 5)"
                                             className={`w-full h-[64px] px-6 text-[24px] font-bold rounded-lg border-2 transition-all 
                                                 ${focusedIndex === index
                                                     ? "border-[#AC5BF8] bg-[#FDF8FF] text-black"
@@ -289,52 +332,21 @@ const FeedbackPage: React.FC<{ examCode?: string }> = ({ examCode = "ND1FHG" }) 
             {/* Bottom Button */}
             <div className="flex justify-center pt-8">
                 <button
-                    onClick={() => {
-                        console.log("[FeedbackPage] Button clicked, items:", items.length);
-
-                        // Clear draft
-                        localStorage.removeItem(`gradi_draft_${examCode}`);
-
-                        // Navigate immediately for better UX
-                        router.push(`/exam/${examCode}/loading/question`);
-
-                        // If there are items, send to backend in background (fire-and-forget)
-                        if (items.length > 0) {
-                            const payload = {
-                                examCode: examCode,
-                                images: items.map(item => {
-                                    let fileName = "unknown.jpg";
-                                    try {
-                                        const rawName = item.imageUrl?.split('/').pop()?.split('?')[0] || "unknown.jpg";
-                                        fileName = decodeURIComponent(rawName);
-                                    } catch {
-                                        fileName = item.imageUrl?.split('/').pop()?.split('?')[0] || "unknown.jpg";
-                                    }
-                                    return {
-                                        fileName: fileName,
-                                        studentId: item.value
-                                    };
-                                })
-                            };
-
-                            console.log("[FeedbackPage] Sending payload in background:", payload);
-
-                            // Fire-and-forget: Don't await
-                            fetch("/api/feedback", {
-                                method: "POST",
-                                headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify(payload)
-                            }).then(res => {
-                                console.log("[FeedbackPage] Background API response:", res.status);
-                            }).catch(err => {
-                                console.error("[FeedbackPage] Background API error:", err);
-                            });
-                        }
-                    }}
-                    disabled={items.length > 0 && items.some(i => !i.value.trim())}
+                    onClick={handleSubmit}
+                    disabled={isSubmitting || (items.length > 0 && items.some(i => !i.correctAnswer.trim()))}
                     className="w-[300px] px-4 py-4 bg-gradient-to-r from-[#AC5BF8] to-[#636ACF] rounded-lg text-white text-xl font-bold shadow-xl hover:scale-105 active:scale-95 transition-all cursor-pointer disabled:opacity-50 disabled:grayscale disabled:cursor-not-allowed"
                 >
-                    채점 계속하기
+                    {isSubmitting ? (
+                        <span className="flex items-center justify-center gap-2">
+                            <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            제출 중...
+                        </span>
+                    ) : (
+                        '채점 마무리하기'
+                    )}
                 </button>
             </div>
 
@@ -355,8 +367,8 @@ const FeedbackPage: React.FC<{ examCode?: string }> = ({ examCode = "ND1FHG" }) 
                     >
                         <img
                             src={zoomedImage}
-                            alt="Zoomed feedback"
-                            onMouseDown={(e) => e.preventDefault()} // Prevent default drag
+                            alt="Zoomed question"
+                            onMouseDown={(e) => e.preventDefault()}
                             onClick={handleImageClick}
                             style={{
                                 transform: `translate(${position.x}px, ${position.y}px) scale(${zoomScale})`,
@@ -408,18 +420,8 @@ const FeedbackPage: React.FC<{ examCode?: string }> = ({ examCode = "ND1FHG" }) 
                     </button>
                 </div>
             )}
-
-            <style jsx>{`
-                @keyframes scale-up {
-                    from { transform: scale(0.98); opacity: 0; }
-                    to { transform: scale(1); opacity: 1; }
-                }
-                .animate-scale-up {
-                    animation: scale-up 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-                }
-            `}</style>
         </div>
     );
 };
 
-export default FeedbackPage;
+export default QuestionFeedbackPage;

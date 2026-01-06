@@ -8,51 +8,61 @@ s3 = boto3.client('s3')
 sqs = boto3.client('sqs')
 
 # Environment Variable: URL of the SQS queue that the AI server polls
-# Example: https://sqs.ap-northeast-2.amazonaws.com/1234567890/ai-input-queue
 QUEUE_URL = os.environ.get('AI_INPUT_QUEUE_URL')
 
 def lambda_handler(event, context):
-    """
-    Triggered by S3 Object Created Event.
-    Generates a Presigned GET URL for the new object and sends it to SQS.
-    """
+    request_id = context.aws_request_id if context else "local-test"
+    print(f"--- [Request ID: {request_id}] Lambda Handler Start ---")
     print(f"Received event: {json.dumps(event)}")
+    print(f"Using QUEUE_URL: {QUEUE_URL}")
     
     if not QUEUE_URL:
-        print("Error: AI_INPUT_QUEUE_URL environment variable is not set.")
+        print(f"❌ [{request_id}] Error: AI_INPUT_QUEUE_URL is not set.")
         return {
             'statusCode': 500,
             'body': json.dumps('Configuration Error: Missing Queue URL')
         }
 
-    for record in event['Records']:
+    records = event.get('Records', [])
+    print(f"[{request_id}] Total Records in this event: {len(records)}")
+    
+    processed_count = 0
+    for i, record in enumerate(records):
         try:
             # 1. Extract Bucket and Key
             bucket = record['s3']['bucket']['name']
-            key = urllib.parse.unquote_plus(record['s3']['object']['key'], encoding='utf-8')
+            raw_key = record['s3']['object']['key']
+            key = urllib.parse.unquote_plus(raw_key, encoding='utf-8')
             
-            print(f"Processing object: s3://{bucket}/{key}")
+            print(f"--- [{request_id}] Processing Record {i + 1}/{len(records)} ---")
+            print(f"Bucket: {bucket}")
+            print(f"Key: {key}")
 
-            # 2. Extract Metadata (total, idx)
-            try:
-                head_object = s3.head_object(Bucket=bucket, Key=key)
-                metadata = head_object.get('Metadata', {})
-                # S3 metadata keys are lowercased
-                total_count = int(metadata.get('total', 40)) 
-                current_idx = int(metadata.get('idx', 0))
-            except Exception as meta_error:
-                print(f"⚠️ Failed to extract metadata: {meta_error}")
-                total_count = 40
-                current_idx = 0
-
-            # 3. Extract Exam Code (Assuming key format: uploads/{examCode}/{filename})
-            # Adjust this logic based on your actual S3 path structure
-            parts = key.split('/')
+            # 2. Extract Exam Code and Determine Event Type
+            clean_key = key.lstrip('/')
+            parts = clean_key.split('/')
+            print(f"Key Parts: {parts}")
+            
             exam_code = "unknown"
-            if len(parts) > 1 and parts[0] == "uploads":
-                exam_code = parts[1]
+            event_type = "STUDENT_ID_RECOGNITION" # Default
+
+            # Robust searching for 'uploads' or 'attendance'
+            if "uploads" in parts:
+                idx = parts.index("uploads")
+                if len(parts) > idx + 1:
+                    exam_code = parts[idx + 1]
+                    event_type = "STUDENT_ID_RECOGNITION"
+            elif "attendance" in parts:
+                idx = parts.index("attendance")
+                if len(parts) > idx + 1:
+                    exam_code = parts[idx + 1]
+                    event_type = "ATTENDANCE_UPLOAD"
             
+            print(f"Detected Exam Code: {exam_code}")
+            print(f"Detected Event Type: {event_type}")
+
             # 3. Generate Presigned GET URL (Valid for 1 hour)
+            print(f"Generating presigned URL for {key}...")
             presigned_url = s3.generate_presigned_url(
                 'get_object',
                 Params={'Bucket': bucket, 'Key': key},
@@ -61,29 +71,41 @@ def lambda_handler(event, context):
 
             # 4. Construct Message Payload for AI Server
             message_body = {
-                "exam_code": exam_code,
-                "s3_key": key,
+                "examCode": exam_code,
                 "filename": parts[-1],
-                "download_url": presigned_url,
-                "event_type": "STUDENT_ID_RECOGNITION",
-                "idx": current_idx,
-                "total": total_count
+                "downloadUrl": presigned_url,
+                "eventType": event_type
             }
+            print(f"SQS Message Body: {json.dumps(message_body)}")
 
             # 5. Send to SQS
+            safe_group_id = exam_code.replace(" ", "_")
+            
+            # Use eventID or a unique combination as deduplication ID
+            dedup_id = record.get('eventID') or f"{bucket}-{key}-{record['s3']['object'].get('sequencer', 'default')}"
+            dedup_id = dedup_id.replace(" ", "_").replace("/", "_")
+
+            print(f"Sending to SQS (GroupId: {safe_group_id}, DedupId: {dedup_id})...")
+
             response = sqs.send_message(
                 QueueUrl=QUEUE_URL,
-                MessageBody=json.dumps(message_body)
+                MessageBody=json.dumps(message_body),
+                MessageGroupId=safe_group_id,
+                MessageDeduplicationId=dedup_id
             )
             
-            print(f"Message sent to SQS! MessageId: {response['MessageId']}")
+            print(f"✅ [{request_id}] Message sent! MessageId: {response['MessageId']}")
+            processed_count += 1
 
         except Exception as e:
-            print(f"Error processing record {record['eventID']}: {e}")
-            # Raising exception marks the batch as failed (if configured)
-            raise e
+            print(f"❌ [{request_id}] Error processing record: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            # Continue to next record if one fails, but keep track of error
+            continue
 
+    print(f"--- [{request_id}] Lambda Handler End (Processed {processed_count}/{len(records)}) ---")
     return {
         'statusCode': 200,
-        'body': json.dumps('Successfully processed S3 event')
+        'body': json.dumps(f'Successfully processed {processed_count} S3 event(s)')
     }

@@ -2,7 +2,7 @@
 
 import React from "react";
 import { useParams } from "next/navigation";
-import FeedbackPage from "../../../../../components/FeedbackPage";
+import FeedbackPage from "../../../../components/FeedbackPage";
 
 const FeedbackPageRoute = () => {
     const params = useParams();
