@@ -3,12 +3,11 @@
 import React from "react";
 import { useRouter } from "next/navigation";
 
-interface GradingDoneProps {
-    examCode?: string;
+interface QuestionRecognitionDoneProps {
     onNext: () => void;
 }
 
-const GradingDone: React.FC<GradingDoneProps> = ({ examCode, onNext }) => {
+const QuestionRecognitionDone: React.FC<QuestionRecognitionDoneProps> = ({ onNext }) => {
     const router = useRouter();
 
     return (
@@ -42,13 +41,13 @@ const GradingDone: React.FC<GradingDoneProps> = ({ examCode, onNext }) => {
                         cy="130"
                         r="120"
                         fill="none"
-                        stroke="url(#gradientGD)"
+                        stroke="url(#gradientQ)"
                         strokeWidth="4"
                         strokeDasharray="60 30"
                         strokeLinecap="round"
                     />
                     <defs>
-                        <linearGradient id="gradientGD" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <linearGradient id="gradientQ" x1="0%" y1="0%" x2="100%" y2="100%">
                             <stop offset="0%" stopColor="#AC5BF8" />
                             <stop offset="100%" stopColor="#636ACF" />
                         </linearGradient>
@@ -95,8 +94,8 @@ const GradingDone: React.FC<GradingDoneProps> = ({ examCode, onNext }) => {
             </div>
 
             {/* Result Message with Fade In */}
-            <div className="absolute w-[500px] left-[calc(50%-250px)] top-[487px] font-['Pretendard'] font-semibold text-[36px] leading-tight text-center text-[#5C5C5C] whitespace-pre-wrap animate-fade-in-up">
-                채점 완료! 🎉
+            <div className="absolute w-[400px] left-[calc(50%-400px/2)] top-[487px] font-['Pretendard'] font-semibold text-[36px] leading-tight text-center text-[#5C5C5C] whitespace-pre-wrap animate-fade-in-up">
+                문항 인식 완료!
             </div>
 
             {/* Next Button with Slide Up */}
@@ -105,7 +104,7 @@ const GradingDone: React.FC<GradingDoneProps> = ({ examCode, onNext }) => {
                     onClick={onNext}
                     className="w-[300px] h-[60px] bg-gradient-to-r from-[#AC5BF8] to-[#636ACF] rounded-[10px] text-white text-[24px] font-bold shadow-lg hover:scale-105 hover:shadow-xl active:scale-95 transition-all cursor-pointer"
                 >
-                    결과 확인하기
+                    채점 계속하기
                 </button>
             </div>
 
@@ -222,4 +221,4 @@ const GradingDone: React.FC<GradingDoneProps> = ({ examCode, onNext }) => {
     );
 };
 
-export default GradingDone;
+export default QuestionRecognitionDone;

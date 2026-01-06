@@ -157,8 +157,13 @@ export const uploadAttendanceStep: SagaStep<ExamSagaContext> = {
 
         ctx.onProgress?.("출석부 업로드 중...");
 
-        const result = await examService.uploadAttendance(ctx.attendanceFile, ctx.examCode);
-        ctx.attendanceS3Url = result.s3Url;
+        const contentType = ctx.attendanceFile.type || "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+        const presignedUrl = await examService.getAttendancePresignedUrl(ctx.examCode, contentType);
+
+        await examService.uploadToPresignedUrl(presignedUrl, ctx.attendanceFile, contentType);
+
+        const ext = contentType.toLowerCase().includes("csv") ? "csv" : "xlsx";
+        ctx.attendanceS3Url = `s3://attendance/${ctx.examCode}/attendance.${ext}`;
     },
     async compensate(ctx) {
         // TODO: S3에서 출석부 파일 삭제 (현재는 로깅만)
@@ -195,17 +200,20 @@ export const uploadImagesStep: SagaStep<ExamSagaContext> = {
         const total = presignedResult.urls.length;
         for (let i = 0; i < presignedResult.urls.length; i++) {
             const urlInfo = presignedResult.urls[i];
-            const file = ctx.answerSheetFiles[urlInfo.index];
+            const file = ctx.answerSheetFiles[urlInfo.index - 1];
 
             if (file) {
                 ctx.onProgress?.(`이미지 업로드 중 (${i + 1}/${total})`);
 
-                // Use the SAME content type as requested for presigning
-                const contentType = file.file.type || "image/jpeg";
+                // Match the normalization used in the backend (S3PresignService.java)
+                let contentType = file.file.type || "image/jpeg";
+                if (contentType === "image/jpg") {
+                    contentType = "image/jpeg";
+                }
 
                 await examService.uploadToPresignedUrl(urlInfo.url, file.file, contentType, {
                     total: total,
-                    idx: i + 1 // 1-based index
+                    index: i + 1 // 1-based index
                 });
 
                 // 성공한 이미지 키 저장 (롤백용)

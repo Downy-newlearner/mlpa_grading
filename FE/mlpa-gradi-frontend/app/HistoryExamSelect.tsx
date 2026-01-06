@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import React, { useMemo, useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ExamHistoryItem } from "./types";
 import { useExamHistory } from "./hooks/useExamHistory";
@@ -16,10 +16,33 @@ const HistoryExamSelect: React.FC<HistoryExamSelectProps> = ({
     exams: initialExams,
 }) => {
     const router = useRouter();
+    const searchParams = useSearchParams();
     const [query, setQuery] = useState("");
     const [isManageMode, setIsManageMode] = useState(false);
     const [selectedCodes, setSelectedCodes] = useState<Set<string>>(new Set());
     const [examsToDelete, setExamsToDelete] = useState<ExamHistoryItem[]>([]);
+
+    // Highlight the just-graded exam (one-time effect)
+    const [highlightCode, setHighlightCode] = useState<string | null>(null);
+
+    useEffect(() => {
+        const code = searchParams.get("highlight");
+        if (code) {
+            setHighlightCode(code.toUpperCase());
+            // Clear the URL param after reading (one-time effect)
+            const timeout = setTimeout(() => {
+                router.replace("/history", { scroll: false });
+            }, 100);
+            // Clear highlight after animation completes
+            const clearHighlight = setTimeout(() => {
+                setHighlightCode(null);
+            }, 3000);
+            return () => {
+                clearTimeout(timeout);
+                clearTimeout(clearHighlight);
+            };
+        }
+    }, [searchParams, router]);
 
     // Usage of custom hook
     const { filterExams, groupExams } = useExamHistory(initialExams);
@@ -178,36 +201,51 @@ const HistoryExamSelect: React.FC<HistoryExamSelectProps> = ({
                                     <div key={group.yearMonth} className="space-y-4">
                                         <h3 className="text-2xl font-bold bg-gradient-to-r from-[#AC5BF8] to-[#636ACF] bg-clip-text text-transparent ml-1 w-fit">{group.yearMonth}</h3>
                                         <div className="space-y-3">
-                                            {group.items.map((exam) => (
-                                                <div key={exam.examId} className="relative flex items-center group">
-                                                    {isManageMode && (
-                                                        <div
-                                                            onClick={() => exam.examCode && toggleSelect(exam.examCode)}
-                                                            className={`mr-4 w-8 h-8 rounded border-2 flex items-center justify-center cursor-pointer transition-all ${exam.examCode && selectedCodes.has(exam.examCode) ? 'bg-[#AC5BF8] border-[#AC5BF8]' : 'bg-white border-gray-400 hover:border-[#AC5BF8]'}`}
+                                            {group.items.map((exam) => {
+                                                const isHighlighted = highlightCode && exam.examCode?.toUpperCase() === highlightCode;
+                                                return (
+                                                    <div key={exam.examId} className={`relative flex items-center group ${isHighlighted ? 'animate-pulse-once' : ''}`}>
+                                                        {isManageMode && (
+                                                            <div
+                                                                onClick={() => exam.examCode && toggleSelect(exam.examCode)}
+                                                                className={`mr-4 w-8 h-8 rounded border-2 flex items-center justify-center cursor-pointer transition-all ${exam.examCode && selectedCodes.has(exam.examCode) ? 'bg-[#AC5BF8] border-[#AC5BF8]' : 'bg-white border-gray-400 hover:border-[#AC5BF8]'}`}
+                                                            >
+                                                                {exam.examCode && selectedCodes.has(exam.examCode) && (
+                                                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
+                                                                        <polyline points="20 6 9 17 4 12" />
+                                                                    </svg>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleExamClick(exam)}
+                                                            disabled={isManageMode}
+                                                            className={`relative flex flex-grow flex-col items-start rounded border p-4 text-left transition-all font-semibold
+                                                            ${isHighlighted
+                                                                    ? 'border-[3px] border-[#AC5BF8] bg-gradient-to-r from-purple-50 to-violet-50 shadow-lg shadow-purple-200 ring-4 ring-purple-300/50 scale-[1.02]'
+                                                                    : 'border-black bg-white'}
+                                                            ${isManageMode ? 'opacity-70 cursor-default' : 'hover:bg-purple-50 hover:border-[#AC5BF8] cursor-pointer'}`}
                                                         >
-                                                            {exam.examCode && selectedCodes.has(exam.examCode) && (
-                                                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
-                                                                    <polyline points="20 6 9 17 4 12" />
-                                                                </svg>
+                                                            {/* NEW Badge for highlighted exam */}
+                                                            {isHighlighted && (
+                                                                <div className="absolute -top-3 -right-3 bg-gradient-to-r from-[#AC5BF8] to-[#636ACF] text-white text-xs font-bold px-3 py-1 rounded-full shadow-lg animate-bounce">
+                                                                    ✨ NEW
+                                                                </div>
                                                             )}
-                                                        </div>
-                                                    )}
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => handleExamClick(exam)}
-                                                        disabled={isManageMode}
-                                                        className={`relative flex flex-grow flex-col items-start rounded border border-black p-4 text-left transition-all bg-white font-semibold ${isManageMode ? 'opacity-70 cursor-default' : 'hover:bg-purple-50 hover:border-[#AC5BF8] cursor-pointer'}`}
-                                                    >
-                                                        <span className="text-xl font-bold text-gray-900 mb-1">{exam.examName}</span>
-                                                        <div className="flex gap-4 text-gray-600 font-medium text-sm">
-                                                            <span>시험일시: {exam.examDate}</span>
-                                                            <span className="bg-gradient-to-r from-[#AC5BF8] to-[#636ACF] bg-clip-text text-transparent font-bold">
-                                                                코드: {exam.examCode || "-"}
+                                                            <span className={`text-xl font-bold mb-1 ${isHighlighted ? 'bg-gradient-to-r from-[#AC5BF8] to-[#636ACF] bg-clip-text text-transparent' : 'text-gray-900'}`}>
+                                                                {exam.examName}
                                                             </span>
-                                                        </div>
-                                                    </button>
-                                                </div>
-                                            ))}
+                                                            <div className="flex gap-4 text-gray-600 font-medium text-sm">
+                                                                <span>시험일시: {exam.examDate}</span>
+                                                                <span className="bg-gradient-to-r from-[#AC5BF8] to-[#636ACF] bg-clip-text text-transparent font-bold">
+                                                                    코드: {exam.examCode || "-"}
+                                                                </span>
+                                                            </div>
+                                                        </button>
+                                                    </div>
+                                                );
+                                            })}
                                         </div>
                                     </div>
                                 ))

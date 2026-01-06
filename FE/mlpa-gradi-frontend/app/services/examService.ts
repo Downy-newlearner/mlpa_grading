@@ -64,29 +64,15 @@ export const examService = {
         return response.json();
     },
 
-    // ✅ 출석부 S3 업로드
-    async uploadAttendance(file: File, examCode: string): Promise<{ message: string; s3Url: string }> {
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("examCode", examCode);
-
-        const response = await fetch(`${API_BASE}/storage/attendance`, {
-            method: "POST",
-            body: formData,
-        });
-        if (!response.ok) throw new Error("Failed to upload attendance");
-        return response.json();
-    },
-
     // Presigned URL로 이미지 업로드
-    async uploadToPresignedUrl(presignedUrl: string, file: File, contentType: string, metadata?: { total?: number; idx?: number }): Promise<void> {
+    async uploadToPresignedUrl(presignedUrl: string, file: File, contentType: string, metadata?: { total?: number; index?: number }): Promise<void> {
         const headers: HeadersInit = {
             "Content-Type": contentType,
         };
 
         if (metadata) {
-            if (metadata.total) headers["x-amz-meta-total"] = metadata.total.toString();
-            if (metadata.idx) headers["x-amz-meta-idx"] = metadata.idx.toString();
+            if (metadata.total !== undefined && metadata.total !== null) headers["x-amz-meta-total"] = metadata.total.toString();
+            if (metadata.index !== undefined && metadata.index !== null) headers["x-amz-meta-index"] = metadata.index.toString();
         }
 
         const response = await fetch(presignedUrl, {
@@ -118,5 +104,28 @@ export const examService = {
         const response = await fetch(`${API_BASE}/student-answers/exam/${examCode}`);
         if (!response.ok) throw new Error("Failed to fetch answers");
         return response.json();
+    },
+
+    // ✅ 출석部 업로드용 Presigned URL 요청
+    async getAttendancePresignedUrl(examCode: string, contentType: string): Promise<string> {
+        const response = await fetch(`${API_BASE}/storage/presigned-url/attendance?examCode=${examCode}&contentType=${contentType}`);
+        if (!response.ok) throw new Error("Failed to get attendance presigned URL");
+        const data = await response.json();
+        return data.url;
+    },
+
+    // ✅ 현재 진행 중인 채점 프로세스 목록 조회
+    async getActiveProcesses(): Promise<{ examCode: string; examName: string; index: number; total: number; status: string; lastUpdateTime: number }[]> {
+        const response = await fetch(`${API_BASE}/storage/active-processes`);
+        if (!response.ok) throw new Error("Failed to get active processes");
+        return response.json();
+    },
+
+    // ✅ 채점 프로세스 강제 중단 (목록에서 제거)
+    async deleteActiveProcess(examCode: string): Promise<void> {
+        const response = await fetch(`${API_BASE}/storage/active-processes/${examCode}`, {
+            method: "DELETE",
+        });
+        if (!response.ok) throw new Error("Failed to stop process");
     }
 };

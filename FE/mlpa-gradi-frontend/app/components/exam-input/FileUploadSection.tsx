@@ -56,7 +56,14 @@ export const FileUploadSection: React.FC<FileUploadSectionProps> = ({
 
                 {/* Answer Sheet Upload */}
                 <div>
-                    <h3 className="text-lg font-semibold mb-2">학생 답안지 업로드</h3>
+                    <h3 className="text-lg font-semibold mb-2">
+                        학생 답안지 업로드
+                        {answerSheetFiles.length > 0 && (
+                            <span className="ml-2 text-sm font-medium bg-gradient-to-r from-[#AC5BF8] to-[#636ACF] bg-clip-text text-transparent">
+                                ({answerSheetFiles.length}개 선택됨)
+                            </span>
+                        )}
+                    </h3>
                     <input
                         type="file"
                         accept=".csv,.xlsx,.pdf"

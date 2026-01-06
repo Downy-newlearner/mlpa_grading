@@ -3,10 +3,9 @@ package com.dankook.mlpa_gradi.service;
 import com.dankook.mlpa_gradi.dto.PresignRequest;
 import com.dankook.mlpa_gradi.dto.PresignResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.web.multipart.MultipartFile;
-import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.DeleteObjectsRequest;
@@ -22,13 +21,13 @@ import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignReques
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 import jakarta.annotation.PostConstruct;
 
-import java.io.IOException;
 import java.time.Duration;
 import java.util.List;
 import java.util.NoSuchElementException;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class S3PresignService {
 
         private final S3Presigner presigner;
@@ -100,6 +99,9 @@ public class S3PresignService {
                                 .bucket(bucket)
                                 .key(key)
                                 .contentType(contentType.equals("image/jpg") ? "image/jpeg" : contentType)
+                                .metadata(java.util.Map.of(
+                                                "total", String.valueOf(req.getTotalIndex()),
+                                                "index", String.valueOf(req.getIndex())))
                                 .build();
 
                 PutObjectPresignRequest presignRequest = PutObjectPresignRequest.builder()
@@ -117,32 +119,6 @@ public class S3PresignService {
                                 req.getTotalIndex(),
                                 req.getIndex(),
                                 url);
-        }
-
-        // ✅ 출석부 파일 S3 직접 업로드
-        public String uploadAttendance(MultipartFile file, String examCode) {
-                String originalFilename = file.getOriginalFilename();
-                String ext = "";
-                if (originalFilename != null && originalFilename.contains(".")) {
-                        ext = originalFilename.substring(originalFilename.lastIndexOf("."));
-                }
-
-                // S3 Key 규칙: attendance/{examCode}/attendance{ext}
-                String key = String.format("attendance/%s/attendance%s", examCode, ext);
-
-                try {
-                        PutObjectRequest putRequest = PutObjectRequest.builder()
-                                        .bucket(bucket)
-                                        .key(key)
-                                        .contentType(file.getContentType())
-                                        .build();
-
-                        s3Client.putObject(putRequest, RequestBody.fromBytes(file.getBytes()));
-
-                        return String.format("s3://%s/%s", bucket, key);
-                } catch (IOException e) {
-                        throw new RuntimeException("Failed to upload attendance file to S3", e);
-                }
         }
 
         // ✅ 배치 이미지 Presigned URL 생성
@@ -175,7 +151,7 @@ public class S3PresignService {
                                         .contentType(contentType.equals("image/jpg") ? "image/jpeg" : contentType)
                                         .metadata(java.util.Map.of(
                                                         "total", String.valueOf(req.getTotal()),
-                                                        "idx", String.valueOf(img.getIndex())))
+                                                        "index", String.valueOf(img.getIndex())))
                                         .build();
 
                         PutObjectPresignRequest presignRequest = PutObjectPresignRequest.builder()
@@ -189,6 +165,32 @@ public class S3PresignService {
                 }
 
                 return new com.dankook.mlpa_gradi.dto.BatchPresignResponse(req.getExamCode(), urls);
+        }
+
+        /**
+         * ✅ 출석부 업로드용 Presigned URL 생성 (PUT)
+         */
+        public String createAttendancePutUrl(String examCode, String contentType) {
+                String ext = "xlsx";
+                if (contentType != null && contentType.toLowerCase().contains("csv")) {
+                        ext = "csv";
+                }
+
+                // S3 Key: attendance/{examCode}/attendance.{ext}
+                String key = String.format("attendance/%s/attendance.%s", examCode, ext);
+
+                PutObjectRequest putObjectRequest = PutObjectRequest.builder()
+                                .bucket(bucket)
+                                .key(key)
+                                .contentType(contentType)
+                                .build();
+
+                PutObjectPresignRequest presignRequest = PutObjectPresignRequest.builder()
+                                .signatureDuration(Duration.ofMinutes(10))
+                                .putObjectRequest(putObjectRequest)
+                                .build();
+
+                return presigner.presignPutObject(presignRequest).url().toString();
         }
 
         /**
@@ -229,14 +231,23 @@ public class S3PresignService {
          * ✅ 특정 시험의 모든 S3 데이터 삭제 (이미지 + 출석부)
          */
         public void deleteByExamCode(String examCode) {
+                String trimmed = examCode.trim();
+                log.info("🗑️ Deleting all S3 objects for exam: {}", trimmed);
+
                 // 1. 이미지 삭제 (uploads/{examCode}/)
-                deleteObjectsWithPrefix(String.format("%s/%s/", prefix, examCode));
+                int c1 = deleteObjectsWithPrefix(String.format("%s/%s/", prefix, trimmed));
 
                 // 2. 출석부 삭제 (attendance/{examCode}/)
-                deleteObjectsWithPrefix(String.format("attendance/%s/", examCode));
+                int c2 = deleteObjectsWithPrefix(String.format("attendance/%s/", trimmed));
+
+                // 3. 인식되지 않은 헤더 이미지 삭제 (header/{examCode}/)
+                int c3 = deleteObjectsWithPrefix(String.format("header/%s/", trimmed));
+
+                log.info("✅ S3 cleanup for {} finished. Deleted: uploads({}) attendance({}) header({})",
+                                trimmed, c1, c2, c3);
         }
 
-        private void deleteObjectsWithPrefix(String prefix) {
+        private int deleteObjectsWithPrefix(String prefix) {
                 try {
                         ListObjectsV2Request listRequest = ListObjectsV2Request.builder()
                                         .bucket(bucket)
@@ -256,11 +267,12 @@ public class S3PresignService {
                                                 .build();
 
                                 s3Client.deleteObjects(deleteRequest);
-                                System.out.println("✅ Deleted S3 objects with prefix: " + prefix);
+                                return identifiers.size();
                         }
+                        return 0;
                 } catch (Exception e) {
-                        System.err.println(
-                                        "❌ Failed to delete S3 objects with prefix " + prefix + ": " + e.getMessage());
+                        log.error("❌ Failed to delete S3 objects with prefix {}: {}", prefix, e.getMessage());
+                        return -1;
                 }
         }
 
@@ -300,6 +312,7 @@ public class S3PresignService {
          */
         public java.util.List<String> getUnknownIdImageUrls(String examCode) {
                 String folderPrefix = String.format("header/%s/unknown_id/", examCode);
+                log.info("🔍 Listing unknown images in S3: bucket={}, prefix={}", bucket, folderPrefix);
 
                 software.amazon.awssdk.services.s3.model.ListObjectsV2Request listRequest = software.amazon.awssdk.services.s3.model.ListObjectsV2Request
                                 .builder()
@@ -307,26 +320,33 @@ public class S3PresignService {
                                 .prefix(folderPrefix)
                                 .build();
 
-                software.amazon.awssdk.services.s3.model.ListObjectsV2Response listResponse = s3Client
-                                .listObjectsV2(listRequest);
+                try {
+                        software.amazon.awssdk.services.s3.model.ListObjectsV2Response listResponse = s3Client
+                                        .listObjectsV2(listRequest);
 
-                return listResponse.contents().stream()
-                                .map(obj -> {
-                                        software.amazon.awssdk.services.s3.model.GetObjectRequest getObjectRequest = software.amazon.awssdk.services.s3.model.GetObjectRequest
-                                                        .builder()
-                                                        .bucket(bucket)
-                                                        .key(obj.key())
-                                                        .build();
+                        log.info("✅ S3 Listing found {} objects for {}", listResponse.contents().size(), examCode);
 
-                                        software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest presignRequest = software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest
-                                                        .builder()
-                                                        .signatureDuration(java.time.Duration.ofMinutes(10))
-                                                        .getObjectRequest(getObjectRequest)
-                                                        .build();
+                        return listResponse.contents().stream()
+                                        .map(obj -> {
+                                                software.amazon.awssdk.services.s3.model.GetObjectRequest getObjectRequest = software.amazon.awssdk.services.s3.model.GetObjectRequest
+                                                                .builder()
+                                                                .bucket(bucket)
+                                                                .key(obj.key())
+                                                                .build();
 
-                                        return presigner.presignGetObject(presignRequest).url().toString();
-                                })
-                                .toList();
+                                                software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest presignRequest = software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest
+                                                                .builder()
+                                                                .signatureDuration(java.time.Duration.ofMinutes(10))
+                                                                .getObjectRequest(getObjectRequest)
+                                                                .build();
+
+                                                return presigner.presignGetObject(presignRequest).url().toString();
+                                        })
+                                        .toList();
+                } catch (Exception e) {
+                        log.error("❌ Failed to list objects from S3: {}", e.getMessage());
+                        return java.util.Collections.emptyList();
+                }
         }
 
         /**

@@ -23,4 +23,9 @@ public class StsController {
 
         return stsService.getTemporaryCredentials(examCode, studentId);
     }
+
+    @GetMapping("/ai-token")
+    public Map<String, String> getAiStsToken() {
+        return stsService.getAiServerCredentials();
+    }
 }

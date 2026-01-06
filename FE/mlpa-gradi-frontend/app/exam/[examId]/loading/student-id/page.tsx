@@ -11,29 +11,21 @@ const StudentIdLoadingPage = () => {
     const router = useRouter();
 
     const examCode = searchParams.get("examCode") || "UNKNOWN";
-    const total = Number(searchParams.get("total")) || 40;
+    const examName = searchParams.get("examName") || "Unknown";
+    const total = Number(searchParams.get("total")) || 0;
 
     const [status, setStatus] = useState<"loading" | "done">("loading");
 
-    const handleComplete = () => {
+    const handleComplete = React.useCallback(() => {
         setStatus("done");
-
-        // Optional: Auto redirect after some time if needed, or user clicks button in Done component
-        // setTimeout(() => router.push(...), 2000);
-    };
+    }, []);
 
     const handleNext = () => {
-        // Assuming Feedback page is at /exam/[examId]/feedback
-        // Or just /feedback if global? But usually specific to exam. 
-        // Let's check where the FeedbackPage is used or routed.
-        // Based on finding `app/components/FeedbackPage.tsx` and likely used in `app/exam/[examId]/grading/feedback/page.tsx` or similar?
-        // Actually I haven't found the route yet, just the component.
-        // Let me search for where FeedbackPage is imported.
-        router.push(`/exam/${params.examId}/grading/feedback`);
+        router.push(`/exam/${examCode}/grading/feedback`);
     };
 
     if (status === "loading") {
-        return <StudentIdLoading examCode={examCode} totalStudents={total} onComplete={handleComplete} />;
+        return <StudentIdLoading examCode={examCode} examName={examName} totalStudents={total} onComplete={handleComplete} />;
     }
 
     return <StudentIdRecognitionDone onNext={handleNext} />;

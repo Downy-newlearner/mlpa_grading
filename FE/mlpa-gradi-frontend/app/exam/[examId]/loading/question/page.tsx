@@ -2,13 +2,14 @@
 
 import React, { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import GradingLoading from "../../../../GradingLoading";
-import GradingDone from "../../../../components/GradingDone";
+import QuestionLoading from "../../../../QuestionLoading";
+import QuestionRecognitionDone from "../../../../components/QuestionRecognitionDone";
 
-const GradingLoadingPage = () => {
+const QuestionLoadingPage = () => {
     const params = useParams();
     const router = useRouter();
 
+    // examId from URL path is the examCode
     const examCode = (Array.isArray(params.examId) ? params.examId[0] : params.examId) || "UNKNOWN";
     const [status, setStatus] = useState<"loading" | "done">("loading");
 
@@ -17,15 +18,15 @@ const GradingLoadingPage = () => {
     }, []);
 
     const handleNext = () => {
-        // Navigate to results page with highlight param
-        router.push(`/history?highlight=${examCode}`);
+        // Navigate to grading loading page
+        router.push(`/exam/${examCode}/loading/grading`);
     };
 
     if (status === "loading") {
-        return <GradingLoading examCode={examCode} onComplete={handleComplete} />;
+        return <QuestionLoading examCode={examCode} onComplete={handleComplete} />;
     }
 
-    return <GradingDone examCode={examCode} onNext={handleNext} />;
+    return <QuestionRecognitionDone onNext={handleNext} />;
 };
 
-export default GradingLoadingPage;
+export default QuestionLoadingPage;

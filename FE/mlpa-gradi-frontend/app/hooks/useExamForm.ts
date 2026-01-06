@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Question, SubQuestion, UploadedFile, QuestionType, BackendQuestion } from "../types";
 import { createExamSaga, ExamSagaContext } from "../services/examSaga";
@@ -27,13 +27,66 @@ export const useExamForm = () => {
     // State
     const [questions, setQuestions] = useState<Question[]>([{ ...createQuestion(), id: "initial-q-1" }]);
     const [examTitle, setExamTitle] = useState("");
-    const [examDate, setExamDate] = useState("");
+    // Default to today's date + time in datetime-local format (YYYY-MM-DDTHH:MM)
+    const [examDate, setExamDate] = useState(() => {
+        const today = new Date();
+        // Set default time to 09:00
+        today.setHours(9, 0, 0, 0);
+        // Format: YYYY-MM-DDTHH:MM
+        const year = today.getFullYear();
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const day = String(today.getDate()).padStart(2, '0');
+        const hours = String(today.getHours()).padStart(2, '0');
+        const minutes = String(today.getMinutes()).padStart(2, '0');
+        return `${year}-${month}-${day}T${hours}:${minutes}`;
+    });
     const [attendanceFile, setAttendanceFile] = useState<UploadedFile | null>(null);
     const [answerSheetFiles, setAnswerSheetFiles] = useState<UploadedFile[]>([]);
+    const [isInitialized, setIsInitialized] = useState(false);
 
     // 업로드 진행 상태
     const [isLoading, setIsLoading] = useState(false);
     const [loadingMessage, setLoadingMessage] = useState("");
+
+    // ✅ Load draft from localStorage on mount (with migration for empty dates)
+    useEffect(() => {
+        const savedDraft = localStorage.getItem("gradi_exam_input_draft");
+        if (savedDraft) {
+            try {
+                const parsed = JSON.parse(savedDraft);
+                const { questions: savedQ, examTitle: savedTitle, examDate: savedDate } = parsed;
+
+                // Migration: If examDate is empty, clear the entire draft to get fresh defaults
+                if (!savedDate || savedDate.trim() === "") {
+                    localStorage.removeItem("gradi_exam_input_draft");
+                    console.log("[Draft] Cleared old draft with empty examDate");
+                } else {
+                    if (savedQ) setQuestions(savedQ);
+                    if (savedTitle) setExamTitle(savedTitle);
+                    setExamDate(savedDate);
+                    console.log("[Draft] Restored exam input draft from localStorage");
+                }
+            } catch (e) {
+                console.error("Failed to restore draft:", e);
+                localStorage.removeItem("gradi_exam_input_draft");
+            }
+        }
+        setIsInitialized(true);
+    }, []);
+
+    // ✅ Save draft to localStorage whenever relevant state changes
+    useEffect(() => {
+        if (!isInitialized) return;
+
+        const draft = {
+            questions,
+            examTitle,
+            examDate,
+            // We don't save File objects (attendanceFile, answerSheetFiles) 
+            // because they cannot be serialized to JSON/localStorage.
+        };
+        localStorage.setItem("gradi_exam_input_draft", JSON.stringify(draft));
+    }, [questions, examTitle, examDate, isInitialized]);
 
     // Derived State
     const totalScore = useMemo(() => questions.reduce((acc, q) => acc + (Number(q.score) || 0), 0), [questions]);
@@ -127,11 +180,6 @@ export const useExamForm = () => {
             alert("시험 이름과 일시를 입력해주세요.");
             return;
         }
-        // Temporarily disabled for testing
-        // if (!attendanceFile) {
-        //     alert("출석부 파일을 업로드해주세요.");
-        //     return;
-        // }
 
         let hasInvalidQuestion = false;
         for (const q of questions) {
@@ -214,8 +262,11 @@ export const useExamForm = () => {
             setLoadingMessage("완료!");
             setIsLoading(false);
 
+            // ✅ Clear draft on success
+            localStorage.removeItem("gradi_exam_input_draft");
+
             alert(`시험이 성공적으로 생성되었습니다!\n시험 코드: ${sagaContext.examCode}`);
-            router.push(`/exam/${sagaContext.examId}/loading/student-id?examCode=${sagaContext.examCode}&total=${answerSheetFiles.length}`);
+            router.push(`/exam/${sagaContext.examId}/loading/student-id?examCode=${sagaContext.examCode}&examName=${encodeURIComponent(examTitle)}&total=${answerSheetFiles.length}`);
         } catch (error) {
             console.error("Saga failed:", error);
             setIsLoading(false);
