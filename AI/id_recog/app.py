@@ -104,7 +104,8 @@ async def lifespan(app: FastAPI):
     try:
         from sqs_worker import init_sqs_worker
         
-        queue_url = os.environ.get("SQS_QUEUE_URL")
+        queue_url = os.environ.get("SQS_QUEUE_URL")  # BE → AI 입력 큐
+        result_queue_url = os.environ.get("SQS_QUEUE_URL2")  # AI → BE 결과 큐
         aws_key = os.environ.get("AWS_ACCESS_KEY_ID")
         aws_secret = os.environ.get("AWS_SECRET_ACCESS_KEY")
         
@@ -114,7 +115,8 @@ async def lifespan(app: FastAPI):
                 aws_access_key_id=aws_key,
                 aws_secret_access_key=aws_secret,
                 region_name=os.environ.get("AWS_DEFAULT_REGION", "ap-northeast-2"),
-                s3_bucket=os.environ.get("S3_BUCKET", "mlpa-gradi")
+                s3_bucket=os.environ.get("S3_BUCKET", "mlpa-gradi"),
+                result_queue_url=result_queue_url  # 결과 전송용 큐 (없으면 입력 큐 사용)
             )
             
             # 학번 추출 콜백 설정
@@ -130,13 +132,16 @@ async def lifespan(app: FastAPI):
                 )
                 return {
                     "student_id": result.student_id,
+                    "header_image": result.header_image,  # 헤더 이미지 추가
                     "meta": result.meta
                 }
             
             worker.set_student_id_callback(student_id_callback)
             worker.start()
             ModelStore.sqs_worker = worker
-            print("  ✓ SQS Worker 시작됨 (백그라운드 폴링 중)")
+            print(f"  ✓ SQS Worker 시작됨")
+            print(f"    - 입력 큐: {queue_url}")
+            print(f"    - 결과 큐: {result_queue_url or queue_url}")
         else:
             print("  - SQS 환경변수 미설정 (SQS_QUEUE_URL, AWS_ACCESS_KEY_ID)")
     except Exception as e:
