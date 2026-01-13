@@ -1,0 +1,22 @@
+{
+    "Records": [
+        {
+            "eventVersion": "2.1",
+            "eventSource": "aws:s3",
+            "awsRegion": "ap-northeast-2",
+            "eventTime": "2026-01-03T00:00:00.000Z",
+            "eventName": "ObjectCreated:Put",
+            "s3": {
+                "bucket": {
+                    "name": "mlpa-gradi"
+                },
+                "object": {
+                    "key": "uploads/ABCDEF/page_001.jpg",
+                    "size": 1024,
+                    "eTag": "test-etag"
+                }
+            },
+            "eventID": "test-event-id"
+        }
+    ]
+}

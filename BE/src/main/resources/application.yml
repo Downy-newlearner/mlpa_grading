@@ -1,0 +1,54 @@
+﻿server:
+  port: 8080
+  servlet:
+    encoding:
+      charset: UTF-8
+
+app:
+  frontend:
+    url: ${FRONTEND_URL:http://localhost:3000}
+
+spring:
+  config:
+    import: "optional:file:application-aws.yml,optional:file:application-local.yml"
+  datasource:
+    url: ${MYSQL_URL}
+    username: ${MYSQL_USER}
+    password: ${MYSQL_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+        show_sql: true
+  servlet:
+    multipart:
+      max-file-size: 100MB
+      max-request-size: 200MB
+
+fastApi:
+  service:
+    url: ${FASTAPI_URL}
+
+aws:
+  s3:
+    bucket: ${aws.s3.bucket}
+  sqs:
+    queue-url: ${AWS_SQS_QUEUE_URL}
+  endpoint: ${AWS_ENDPOINT}
+  credentials:
+    access-key: ${AWS_ACCESS_KEY}
+    secret-key: ${AWS_SECRET_KEY}
+  region:
+    static: ${AWS_REGION_STATIC:ap-northeast-2}
+
+  sts:
+    account-id: ${AWS_ACCOUNT_ID}
+    role-name: ${AWS_ROLE_NAME}
+    region: ap-northeast-2
+
+ai:
+  server:
+    url: ${AI_SERVER_URL}
