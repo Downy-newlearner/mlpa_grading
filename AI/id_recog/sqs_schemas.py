@@ -19,6 +19,10 @@ import json
 # =============================================================================
 EVENT_ATTENDANCE_UPLOAD = "ATTENDANCE_UPLOAD"
 EVENT_STUDENT_ID_RECOGNITION = "STUDENT_ID_RECOGNITION"
+EVENT_ANSWER_METADATA_UPLOAD = "ANSWER_METADATA_UPLOAD"  # 정답 메타데이터 업로드
+EVENT_ANSWER_RECOGNITION = "ANSWER_RECOGNITION"  # 답안 인식 요청
+EVENT_GRADING_COMPLETE = "GRADING_COMPLETE"  # 채점 완료 요청
+EVENT_GRADING_RESULT = "GRADING_RESULT"  # 채점 결과 (AI → BE)
 UNKNOWN_ID = "unknown_id"
 
 
@@ -152,6 +156,165 @@ class SQSOutputMessage:
             filename=filename,
             index=index
         )
+
+
+# =============================================================================
+# 답안 인식 관련 메시지 스키마
+# =============================================================================
+@dataclass
+class AnswerRecognitionInputMessage:
+    """
+    답안 인식 요청 메시지 (BE → AI)
+    
+    {
+        "eventType": "ANSWER_RECOGNITION",
+        "examCode": "AI_2024_MID",
+        "downloadUrl": "presigned_url",
+        "filename": "page_001.jpg",
+        "studentId": "20201234"  # 이미 인식된 학번
+    }
+    """
+    event_type: str
+    exam_code: str
+    filename: str
+    download_url: str
+    student_id: str  # 학번 인식 단계에서 이미 확정된 학번
+    receipt_handle: Optional[str] = None
+    
+    @classmethod
+    def from_sqs_message(cls, body: dict, receipt_handle: str = None) -> "AnswerRecognitionInputMessage":
+        return cls(
+            event_type=body.get("eventType", ""),
+            exam_code=body.get("examCode", ""),
+            filename=body.get("filename", ""),
+            download_url=body.get("downloadUrl", ""),
+            student_id=body.get("studentId", ""),
+            receipt_handle=receipt_handle
+        )
+
+
+@dataclass
+class AnswerRecognitionResultItem:
+    """개별 문제 답안 인식 결과"""
+    question_number: int
+    sub_question_number: int  # 0 = 꼬리문제 없음
+    rec_answer: Optional[str]
+    confidence: float
+    is_fallback: bool = False
+    s3_key: Optional[str] = None  # Fallback 시 ROI 이미지 S3 키
+    
+    def to_dict(self) -> dict:
+        return {
+            "questionNumber": self.question_number,
+            "subQuestionNumber": self.sub_question_number,
+            "recAnswer": self.rec_answer,
+            "confidence": round(self.confidence, 4),
+            "isFallback": self.is_fallback,
+            "s3Key": self.s3_key
+        }
+
+
+@dataclass
+class AnswerRecognitionOutputMessage:
+    """
+    답안 인식 결과 메시지 (AI → BE)
+    
+    {
+        "eventType": "ANSWER_RECOGNITION",
+        "examCode": "AI_2024_MID",
+        "studentId": "20201234",
+        "filename": "page_001.jpg",
+        "success": true,
+        "results": [
+            {"questionNumber": 1, "subQuestionNumber": 0, "recAnswer": "3", "confidence": 0.95, "isFallback": false},
+            {"questionNumber": 2, "subQuestionNumber": 1, "recAnswer": null, "confidence": 0.3, "isFallback": true, "s3Key": "answer/..."}
+        ],
+        "fallbackCount": 1
+    }
+    """
+    event_type: str
+    exam_code: str
+    student_id: str
+    filename: str
+    success: bool
+    results: list  # List[AnswerRecognitionResultItem]
+    fallback_count: int = 0
+    error_message: Optional[str] = None
+    
+    def to_dict(self) -> dict:
+        return {
+            "eventType": self.event_type,
+            "examCode": self.exam_code,
+            "studentId": self.student_id,
+            "filename": self.filename,
+            "success": self.success,
+            "results": [r.to_dict() if hasattr(r, 'to_dict') else r for r in self.results],
+            "fallbackCount": self.fallback_count,
+            "errorMessage": self.error_message
+        }
+    
+    def to_json(self) -> str:
+        return json.dumps(self.to_dict(), ensure_ascii=False, indent=2)
+    
+    @classmethod
+    def create(
+        cls,
+        exam_code: str,
+        student_id: str,
+        filename: str,
+        results: list,
+        success: bool = True,
+        error_message: str = None
+    ) -> "AnswerRecognitionOutputMessage":
+        fallback_count = sum(1 for r in results if getattr(r, 'is_fallback', False))
+        return cls(
+            event_type=EVENT_ANSWER_RECOGNITION,
+            exam_code=exam_code,
+            student_id=student_id,
+            filename=filename,
+            success=success,
+            results=results,
+            fallback_count=fallback_count,
+            error_message=error_message
+        )
+
+
+@dataclass
+class GradingResultMessage:
+    """
+    채점 결과 메시지 (AI → BE)
+    
+    {
+        "eventType": "GRADING_RESULT",
+        "examCode": "AI_2024_MID",
+        "totalStudents": 30,
+        "gradedStudents": 28,
+        "pendingFallbacks": 2,
+        "results": [
+            {"studentId": "20201234", "totalPoints": 50, "earnedPoints": 42, "correctCount": 8},
+            ...
+        ]
+    }
+    """
+    event_type: str
+    exam_code: str
+    total_students: int
+    graded_students: int
+    pending_fallbacks: int
+    results: list  # List[StudentGradeResult]
+    
+    def to_dict(self) -> dict:
+        return {
+            "eventType": self.event_type,
+            "examCode": self.exam_code,
+            "totalStudents": self.total_students,
+            "gradedStudents": self.graded_students,
+            "pendingFallbacks": self.pending_fallbacks,
+            "results": self.results
+        }
+    
+    def to_json(self) -> str:
+        return json.dumps(self.to_dict(), ensure_ascii=False, indent=2)
 
 
 # =============================================================================

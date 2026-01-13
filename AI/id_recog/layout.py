@@ -9,7 +9,10 @@ import numpy as np
 from PIL import Image
 from dataclasses import dataclass
 
-from schemas import BBox
+try:
+    from .schemas import BBox
+except ImportError:
+    from schemas import BBox
 
 
 @dataclass

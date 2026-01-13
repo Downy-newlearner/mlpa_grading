@@ -27,8 +27,16 @@ from botocore.exceptions import ClientError
 from sqs_schemas import (
     SQSInputMessage, 
     SQSOutputMessage,
+    AnswerRecognitionInputMessage,
+    AnswerRecognitionOutputMessage,
+    AnswerRecognitionResultItem,
+    GradingResultMessage,
     EVENT_ATTENDANCE_UPLOAD,
     EVENT_STUDENT_ID_RECOGNITION,
+    EVENT_ANSWER_METADATA_UPLOAD,
+    EVENT_ANSWER_RECOGNITION,
+    EVENT_GRADING_COMPLETE,
+    EVENT_GRADING_RESULT,
     UNKNOWN_ID
 )
 
@@ -44,6 +52,9 @@ class SQSWorker:
     백그라운드에서 SQS로부터 메시지를 수신하고 처리합니다.
     - ATTENDANCE_UPLOAD: 출석부 다운로드 및 파싱
     - STUDENT_ID_RECOGNITION: 이미지 학번 추출
+    - ANSWER_METADATA_UPLOAD: 정답 메타데이터 업로드
+    - ANSWER_RECOGNITION: 답안 인식
+    - GRADING_COMPLETE: 채점 완료 요청
     """
     
     def __init__(
@@ -89,6 +100,9 @@ class SQSWorker:
         # ExamCode별 index 카운터 (AI 서버에서 0부터 카운트)
         self._index_counters: Dict[str, int] = {}
         
+        # ExamCode별 정답 메타데이터 저장소 (답안 인식용)
+        self._answer_metadata: Dict[str, dict] = {}
+        
         logger.info(f"SQS Worker 초기화 완료: 입력={queue_url}, 결과={self.result_queue_url}")
     
     def set_student_id_callback(self, callback: Callable[[np.ndarray, List[str]], dict]):
@@ -108,6 +122,22 @@ class SQSWorker:
             callback: (file_path) -> [student_id, ...]
         """
         self._attendance_callback = callback
+    
+    def set_answer_recognition_callback(self, callback: Callable[[np.ndarray, str, dict], dict]):
+        """
+        답안 인식 콜백 함수 설정
+        
+        Args:
+            callback: (image, student_id, metadata) -> {
+                "results": List[AnswerRecognitionResult],
+                "fallback_rois": List[AnswerROI]
+            }
+        """
+        self._answer_recognition_callback = callback
+    
+    def get_answer_metadata(self, exam_code: str) -> Optional[dict]:
+        """특정 시험의 정답 메타데이터 반환"""
+        return self._answer_metadata.get(exam_code)
     
     def get_student_list(self, exam_code: str) -> List[str]:
         """특정 시험의 학번 리스트 반환"""
@@ -396,18 +426,26 @@ class SQSWorker:
         
         # 4. S3 업로드
         # - 성공 시: original/{exam_code}/{student_id}/{filename} (원본 이미지)
-        # - 실패 시: header/{exam_code}/unknown_id/{filename} (헤더 이미지)
+        # - 실패 시: 
+        #    1. header/{exam_code}/unknown_id/{filename} (헤더 확인용)
+        #    2. original/{exam_code}/unknown_id/{filename} (나중에 답안 인식 Fallback용 원본)
+        
         if student_id:
             s3_key = f"original/{msg.exam_code}/{student_id}/{msg.filename}"
-            upload_image = image  # 원본 이미지 업로드
             print(f"[STEP 4/4] S3 업로드 중 (original)... key={s3_key}")
+            self.upload_image_to_s3(image, s3_key)
         else:
-            s3_key = f"header/{msg.exam_code}/{UNKNOWN_ID}/{msg.filename}"
-            # 헤더 이미지가 있으면 헤더를, 없으면 원본을 업로드
-            upload_image = header_image if header_image is not None else image
-            print(f"[STEP 4/4] S3 업로드 중 (header)... key={s3_key}")
+            # 1. 헤더 이미지 업로드 (프론트엔드 확인용)
+            header_key = f"header/{msg.exam_code}/{UNKNOWN_ID}/{msg.filename}"
+            upload_header = header_image if header_image is not None else image
+            print(f"[STEP 4/4] S3 업로드 중 (header)... key={header_key}")
+            self.upload_image_to_s3(upload_header, header_key)
+            
+            # 2. 원본 이미지 업로드 (unknown_id 폴더에 저장 -> 추후 Fallback 시 사용)
+            original_unknown_key = f"original/{msg.exam_code}/{UNKNOWN_ID}/{msg.filename}"
+            print(f"[STEP 4/4] S3 업로드 중 (original_unknown)... key={original_unknown_key}")
+            self.upload_image_to_s3(image, original_unknown_key)
         
-        self.upload_image_to_s3(upload_image, s3_key)
         print(f"[STEP 4/4] ✅ S3 업로드 완료!")
         
         print(f"[DONE] 이미지 처리 완료: {msg.filename} → {student_id or 'unknown_id'}")
@@ -420,10 +458,353 @@ class SQSWorker:
             return self.handle_attendance_upload(msg)
         elif msg.event_type == EVENT_STUDENT_ID_RECOGNITION:
             return self.handle_student_id_recognition(msg)
+        elif msg.event_type == EVENT_ANSWER_METADATA_UPLOAD:
+            return self.handle_answer_metadata_upload(msg)
+        elif msg.event_type == EVENT_ANSWER_RECOGNITION:
+            return self.handle_answer_recognition(msg)
+        elif msg.event_type == EVENT_GRADING_COMPLETE:
+            return self.handle_grading_complete(msg)
         else:
             print(f"[SQS_WARNING] 알 수 없는 이벤트 타입: {msg.event_type}")
             logger.warning(f"알 수 없는 이벤트 타입: {msg.event_type}")
             return False
+    
+    # =========================================================================
+    # 답안 인식 이벤트 핸들러
+    # =========================================================================
+    # =========================================================================
+    # 답안 인식 이벤트 핸들러
+    # =========================================================================
+    def handle_answer_metadata_upload(self, msg: SQSInputMessage) -> bool:
+        """정답 메타데이터 업로드 이벤트 처리 + 배치 답안 인식 실행"""
+        logger.info(f"[ANSWER_METADATA_UPLOAD] exam={msg.exam_code}, file={msg.filename}")
+        print(f"[ANSWER_METADATA_UPLOAD] 정답 메타데이터 다운로드 중...")
+        
+        if not msg.download_url:
+            logger.error(f"[ANSWER_METADATA_UPLOAD ERROR] downloadUrl 누락")
+            return True  # 삭제 처리
+        
+        try:
+            # 1. JSON 파일 다운로드
+            import requests
+            resp = requests.get(msg.download_url, timeout=60)
+            resp.raise_for_status()
+            
+            metadata = resp.json()
+            
+            # 2. 메모리에 저장
+            self._answer_metadata[msg.exam_code] = metadata
+            logger.info(f"[ANSWER_METADATA_UPLOAD] {msg.exam_code}: 메타데이터 로드 완료")
+            print(f"[ANSWER_METADATA_UPLOAD] ✅ 메타데이터 로드 완료: {len(metadata.get('questions', []))}개 문제")
+            
+            # 3. 배치 답안 인식 시작 (비동기 권장이지만, 현재는 동기 처리)
+            print(f"[ANSWER_METADATA_UPLOAD] 🚀 배치 답안 인식 트러거됨 (exam={msg.exam_code})")
+            threading.Thread(
+                target=self.process_batch_answer_recognition,
+                args=(msg.exam_code, metadata),
+                daemon=True
+            ).start()
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"[ANSWER_METADATA_UPLOAD ERROR] {e}")
+            print(f"[ANSWER_METADATA_UPLOAD] ❌ 실패: {e}")
+            return False
+
+    def process_batch_answer_recognition(self, exam_code: str, metadata: dict):
+        """
+        [배치 처리] 해당 시험의 모든 이미지를 S3에서 가져와 답안 인식 수행
+        
+        Input S3: original/{exam_code}/{student_id}/{filename}
+        
+        Logic:
+        1. original/{exam_code}/ 하위 모든 이미지 순회
+        2. student_id 폴더가 'unknown_id'인 경우:
+           - 메타데이터의 'images' 리스트(fallback info)를 확인
+           - filename이 매칭되면 해당 studentId로 인식 수행
+           - 매칭 안 되면 스킵
+        3. 그 외 (정상 student_id)인 경우:
+           - 해당 student_id로 인식 수행
+        
+        Output S3:
+          - Result: answer/{exam_code}/{student_id}/result.json
+          - Fallback IMG: answer/{exam_code}/{student_id}/{q}/{sub_q}/{filename}
+        """
+        print(f"[BATCH] 🏁 배치 작업 시작: {exam_code}")
+        
+        # 0. Fallback 매핑 정보 생성 (unknown_id 처리용)
+        # metadata = { "examCode": "...", "images": [ {"fileName": "...", "studentId": "..."}, ... ] }
+        fallback_map = {} # filename -> studentId
+        if "images" in metadata and isinstance(metadata["images"], list):
+            for img_info in metadata["images"]:
+                fname = img_info.get("fileName")
+                sid = img_info.get("studentId")
+                if fname and sid:
+                    fallback_map[fname] = sid
+        
+        prefix = f"original/{exam_code}/"
+        paginator = self.s3.get_paginator('list_objects_v2')
+        
+        processed_count = 0
+        error_count = 0
+        
+        try:
+            for page in paginator.paginate(Bucket=self.s3_bucket, Prefix=prefix):
+                for obj in page.get('Contents', []):
+                    key = obj['Key']
+                    # key format: original/{exam_code}/{student_id}/{filename}
+                    parts = key.split('/')
+                    if len(parts) < 4:
+                        continue
+                        
+                    folder_student_id = parts[2]
+                    filename = parts[3]
+                    
+                    target_student_id = folder_student_id
+                    
+                    # Unknown ID 처리 로직
+                    if folder_student_id == "unknown_id":
+                        if filename in fallback_map:
+                            target_student_id = fallback_map[filename]
+                            print(f"[BATCH] 🔄 Fallback 매핑: {filename} -> {target_student_id}")
+                        else:
+                            # 매핑 정보가 없으면 스킵 (혹은 로그)
+                            # print(f"[BATCH] ⚠️ Unknown image skipped (no mapping): {filename}")
+                            continue
+                    
+                    # 이미지 다운로드
+                    image = self.download_image(key)
+                    if image is None:
+                        print(f"[BATCH] ❌ 이미지 다운로드 실패: {key}")
+                        error_count += 1
+                        continue
+                        
+                    # 콜백 실행 (답안 인식 + Fallback 업로드)
+                    if self._answer_recognition_callback:
+                        try:
+                            # filename 인자 추가 전달
+                            # 주의: target_student_id를 전달해야 함
+                            result = self._answer_recognition_callback(image, target_student_id, metadata, filename)
+                            
+                            # 결과 포맷팅 및 S3 업로드 (result.json)
+                            self._format_and_upload_result(exam_code, target_student_id, result, metadata)
+                            processed_count += 1
+                            
+                            if processed_count % 10 == 0:
+                                print(f"[BATCH] 진행 중... {processed_count}건 완료")
+                                
+                        except Exception as e:
+                            print(f"[BATCH] ❌ 처리 중 에러 ({key}): {e}")
+                            import traceback
+                            traceback.print_exc()
+                            error_count += 1
+            
+            print(f"[BATCH] ✅ 배치 작업 완료: 성공 {processed_count}, 실패 {error_count}")
+            
+        except Exception as e:
+            print(f"[BATCH] ❌ 배치 루프 에러: {e}")
+            import traceback
+            traceback.print_exc()
+
+    def _format_and_upload_result(self, exam_code: str, student_id: str, result_data: dict, metadata: dict):
+        """
+        결과 JSON 포맷팅 및 S3 업로드
+        
+        Metadata 필드: questionId, questionNumber, questionType, answer, answerCount, point
+        Result 필드: questionNumber, subQuestionNumber, recAnswer, confidence, rawText
+        """
+        raw_results = result_data.get("results", [])
+        
+        formatted_answers = []
+        
+        # 메타데이터 questions 리스트 (검색 최적화를 위해 dict로 변환하면 좋지만, 개별 순회도 무방)
+        meta_questions = metadata.get("questions", [])
+        
+        for item in raw_results:
+            # item is AnswerRecognitionResult object from schemas.py
+            
+            # 1. 해당 문제의 메타 정보 찾기
+            q_meta = next((q for q in meta_questions if q['questionNumber'] == item.question_number), None)
+            
+            # 메타데이터가 없는 문제는 스킵할지 포함할지 결정 (여기선 포함하되 기본값 사용)
+            question_id = q_meta.get("questionId", 0) if q_meta else 0
+            question_type = q_meta.get("questionType", "objective") if q_meta else item.scoring_type.value
+            
+            # answer (정답 값): 메타에서 가져옴
+            answer_val = q_meta.get("answer", "") if q_meta else ""
+            
+            # point (배점): 메타에서
+            point = q_meta.get("point", 0.0) if q_meta else 0.0
+            
+            # answerCount: 메타에서
+            answer_count = q_meta.get("answerCount", 1) if q_meta else 1
+            
+            # 2. 인식 결과 Parsing
+            rec_str = item.rec_answer or ""
+            values = []
+            
+            # 객관식인 경우 숫자 추출, 주관식인 경우 텍스트 그대로 등 처리
+            # (요청 예시에는 values: [6] 처럼 숫자 리스트로 되어 있음 -> 객관식 가정)
+            # 만약 questionType이 SUBJECTIVE라면 values 처리가 다를 수 있음
+            
+            if rec_str:
+                import re
+                nums = re.findall(r'\d+', rec_str)
+                values = [int(n) for n in nums]
+            
+            raw_text = item.meta.get("raw_ocr_text", "")
+            if not raw_text and rec_str:
+                raw_text = rec_str
+            
+            formatted_item = {
+                "questionNumber": item.question_number,
+                "subQuestionNumber": item.sub_question_number or 0,
+                "point": point,             # 메타 그대로
+                "answerCount": answer_count, # 메타 그대로
+                "answerType": question_type, # 메타의 questionType 사용 (필드명은 answerType 유지, 요청 예시 따름)
+                "recAnswer": {
+                    "values": values,
+                    "confidence": [round(item.confidence, 4)] if item.confidence else [],
+                    "rawText": raw_text
+                }
+            }
+            formatted_answers.append(formatted_item)
+        
+        final_json = {
+            "examCode": exam_code,
+            "studentId": student_id,
+            "total": 100, # TODO: 실제 총점 계산 로직 필요 시 추가
+            "status": "completed",
+            "eventType": "ANSWER_RECOGNITION",
+            "answers": formatted_answers
+        }
+        
+        # S3 업로드: answer/{exam code}/{학번}/result.json
+        s3_key = f"answer/{exam_code}/{student_id}/result.json"
+        
+        try:
+            self.s3.put_object(
+                Bucket=self.s3_bucket,
+                Key=s3_key,
+                Body=json.dumps(final_json, ensure_ascii=False, indent=2),
+                ContentType='application/json'
+            )
+            # print(f"  [UPLOAD] 결과 JSON 업로드: {s3_key}")
+        except Exception as e:
+            print(f"  [UPLOAD FAIL] 결과 JSON 업로드 실패: {s3_key}, {e}")
+
+    def handle_answer_recognition(self, msg: SQSInputMessage) -> bool:
+        """답안 인식 이벤트 처리 (개별 메시지)"""
+        body = {
+            "eventType": msg.event_type,
+            "examCode": msg.exam_code,
+            "filename": msg.filename,
+            "downloadUrl": msg.download_url,
+            "studentId": ""  # SQSInputMessage에는 없음, 추후 수정 필요
+        }
+        answer_msg = AnswerRecognitionInputMessage.from_sqs_message(body, msg.receipt_handle)
+        
+        logger.info(f"[ANSWER_RECOGNITION] exam={msg.exam_code}, file={msg.filename}")
+        print(f"[ANSWER_RECOGNITION] 답안 인식 시작: {msg.filename}")
+        
+        # 메타데이터 로드 확인
+        metadata = self.get_answer_metadata(msg.exam_code)
+        if not metadata:
+            print(f"[NACK] ⏳ 정답 메타데이터가 아직 로드되지 않음 (exam={msg.exam_code})")
+            return False  # NACK → 재시도
+        
+        # 이미지 다운로드
+        image = self.download_image(msg.download_url)
+        if image is None:
+            print(f"[ANSWER_RECOGNITION] ❌ 이미지 다운로드 실패")
+            return False
+        
+        # 콜백 호출
+        if hasattr(self, '_answer_recognition_callback') and self._answer_recognition_callback:
+            try:
+                result = self._answer_recognition_callback(
+                    image, 
+                    answer_msg.student_id,
+                    metadata
+                )
+                
+                # 결과 메시지 생성
+                results = result.get("results", [])
+                fallback_rois = result.get("fallback_rois", [])
+                
+                # AnswerRecognitionResultItem 리스트로 변환
+                result_items = []
+                for r in results:
+                    item = AnswerRecognitionResultItem(
+                        question_number=r.question_number,
+                        sub_question_number=r.sub_question_number or 0,
+                        rec_answer=r.rec_answer,
+                        confidence=r.confidence,
+                        is_fallback=r.confidence < 0.7,
+                        s3_key=getattr(r, 's3_key', None)
+                    )
+                    result_items.append(item)
+                
+                # 결과 메시지 전송
+                output_msg = AnswerRecognitionOutputMessage.create(
+                    exam_code=msg.exam_code,
+                    student_id=answer_msg.student_id,
+                    filename=msg.filename,
+                    results=result_items
+                )
+                
+                self.send_result_message_generic(output_msg, group_id=msg.exam_code)
+                print(f"[ANSWER_RECOGNITION] ✅ 완료: {len(result_items)}개 문제 인식, {output_msg.fallback_count}개 Fallback")
+                
+                return True
+                
+            except Exception as e:
+                logger.error(f"[ANSWER_RECOGNITION ERROR] {e}")
+                print(f"[ANSWER_RECOGNITION] ❌ 콜백 실행 실패: {e}")
+                import traceback
+                traceback.print_exc()
+                return False
+        else:
+            print(f"[ANSWER_RECOGNITION] ⚠️ 콜백이 설정되지 않음")
+            return True  # 콜백 없으면 그냥 통과
+    
+    def handle_grading_complete(self, msg: SQSInputMessage) -> bool:
+        """채점 완료 요청 처리"""
+        logger.info(f"[GRADING_COMPLETE] exam={msg.exam_code}")
+        print(f"[GRADING_COMPLETE] 채점 요청 수신: {msg.exam_code}")
+        
+        # TODO: 실제 채점 로직 구현
+        # 1. Fallback 수정값 병합
+        # 2. 정답 메타데이터와 비교
+        # 3. 점수 계산
+        # 4. 결과 메시지 전송
+        
+        print(f"[GRADING_COMPLETE] ⚠️ 채점 로직 미구현 (TODO)")
+        return True
+    
+    def send_result_message_generic(self, message, group_id: str = "default") -> Optional[str]:
+        """범용 결과 메시지 전송 (AnswerRecognitionOutputMessage 등)"""
+        import uuid
+        
+        try:
+            body = message.to_json()
+            print(f"[SQS_SEND] 결과 전송: {message.event_type}")
+            
+            response = self.sqs.send_message(
+                QueueUrl=self.result_queue_url,
+                MessageBody=body,
+                MessageGroupId=group_id,
+                MessageDeduplicationId=str(uuid.uuid4())
+            )
+            msg_id = response.get('MessageId')
+            print(f"[SQS_SEND] ✅ 전송 완료 (MessageId: {msg_id})")
+            return msg_id
+        except ClientError as e:
+            print(f"[SQS_SEND] ❌ 전송 실패: {e}")
+            logger.error(f"SQS 메시지 전송 실패: {e}")
+            return None
+
     
     # =========================================================================
     # 워커 루프
