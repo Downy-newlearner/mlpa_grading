@@ -30,10 +30,26 @@ public class AiPdfClientService {
         } catch (WebClientResponseException e) {
             throw new IllegalStateException(
                     "AI PDF server error: status=" + e.getStatusCode()
-                            + ", body=" + e.getResponseBodyAsString(), e
-            );
+                            + ", body=" + e.getResponseBodyAsString(),
+                    e);
         } catch (Exception e) {
             throw new IllegalStateException("Failed to call AI PDF server", e);
+        }
+    }
+
+    public String sendQuestions(java.util.List<com.dankook.mlpa_gradi.dto.QuestionDto> questions) {
+        try {
+            return aiWebClient.post()
+                    .uri("/grading/questions")
+                    .bodyValue(questions)
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .block();
+        } catch (WebClientResponseException e) {
+            throw new IllegalStateException(
+                    "AI Server error: " + e.getResponseBodyAsString(), e);
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to send questions to AI server", e);
         }
     }
 }

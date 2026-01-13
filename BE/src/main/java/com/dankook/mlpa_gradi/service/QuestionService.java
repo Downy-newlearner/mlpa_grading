@@ -31,4 +31,22 @@ public class QuestionService {
         Question saved = questionRepository.save(question);
         return QuestionMapper.toDto(saved);
     }
+
+    private final AiPdfClientService aiClientService;
+
+    public String proxyQuestionsToAi(String examCode) {
+        // 1. 조회
+        List<Question> questions = questionRepository.findByExam_ExamCode(examCode);
+        if (questions.isEmpty()) {
+            throw new IllegalArgumentException("No questions found for examCode: " + examCode);
+        }
+
+        // 2. 변환
+        List<QuestionDto> dtos = questions.stream()
+                .map(QuestionMapper::toDto)
+                .toList();
+
+        // 3. 전송
+        return aiClientService.sendQuestions(dtos);
+    }
 }

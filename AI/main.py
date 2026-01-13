@@ -30,3 +30,22 @@ def course_stats_pdf(subject: str = Query(default="TEST_SUBJECT")):
             "Content-Disposition": "attachment; filename=course_report.pdf"
         }
     )
+
+from pydantic import BaseModel
+from typing import List, Optional
+
+class QuestionModel(BaseModel):
+    questionId: Optional[int] = None
+    questionNumber: int
+    questionType: Optional[str] = None
+    subQuestionNumber: Optional[int] = None
+    answer: Optional[str] = None
+    answerCount: int
+    point: float
+
+@app.post("/grading/questions")
+def receive_questions(questions: List[QuestionModel]):
+    print(f"Received {len(questions)} questions")
+    for q in questions:
+        print(q)
+    return {"status": "success", "count": len(questions)}

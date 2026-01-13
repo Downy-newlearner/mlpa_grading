@@ -9,4 +9,7 @@ public interface QuestionRepository extends JpaRepository<Question, Long> {
 
     // 특정 시험에 속한 문제들
     List<Question> findByExam_ExamId(Long examId);
+
+    // ExamCode로 문제 조회
+    List<Question> findByExam_ExamCode(String examCode);
 }

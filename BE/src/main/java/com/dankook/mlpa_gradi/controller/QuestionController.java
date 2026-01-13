@@ -29,4 +29,9 @@ public class QuestionController {
     public QuestionDto create(@RequestBody Question question) {
         return questionService.create(question);
     }
+
+    @PostMapping("/proxy/{examCode}")
+    public String proxyQuestions(@PathVariable String examCode) {
+        return questionService.proxyQuestionsToAi(examCode);
+    }
 }
