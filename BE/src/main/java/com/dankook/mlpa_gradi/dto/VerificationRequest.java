@@ -1,4 +1,4 @@
-package com.dankook.mlpa_gradi.dto.email;
+package com.dankook.mlpa_gradi.dto;
 
 import lombok.Getter;
 import lombok.NoArgsConstructor;

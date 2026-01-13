@@ -2,7 +2,6 @@ package com.dankook.mlpa_gradi.controller;
 
 import com.dankook.mlpa_gradi.entity.Exam;
 import com.dankook.mlpa_gradi.repository.ExamRepository;
-import com.dankook.mlpa_gradi.service.AiPdfClientService;
 import com.dankook.mlpa_gradi.service.PdfService;
 import com.dankook.mlpa_gradi.service.S3PresignService;
 import lombok.RequiredArgsConstructor;
@@ -30,7 +29,6 @@ import lombok.extern.slf4j.Slf4j;
 public class ReportController {
 
     private final PdfService pdfService;
-    private final AiPdfClientService aiPdfClientService;
     private final S3PresignService s3PresignService;
     private final ExamRepository examRepository;
     private final com.dankook.mlpa_gradi.repository.memory.InMemoryReportRepository inMemoryReportRepository;
@@ -65,22 +63,18 @@ public class ReportController {
      */
     @GetMapping("/course-stats.pdf")
     public ResponseEntity<ByteArrayResource> downloadCourseStatsPdf(
-            @RequestParam String examCode
-    ) {
+            @RequestParam String examCode) {
         // 1️⃣ examCode 존재 여부 검증
         Exam exam = examRepository.findByExamCode(examCode)
-                .orElseThrow(() ->
-                        new ResponseStatusException(
-                                HttpStatus.NOT_FOUND,
-                                "Invalid examCode: " + examCode
-                        )
-                );
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Invalid examCode: " + examCode));
 
         // 2️⃣ examCode → subject(examName) 매핑
         String subject = exam.getExamName();
 
         // 3️⃣ AI 서버(FastAPI) 호출
-        byte[] pdfBytes = aiPdfClientService.fetchCourseStatsPdf(subject);
+        byte[] pdfBytes = pdfService.fetchCourseStatsPdf(subject);
         ByteArrayResource resource = new ByteArrayResource(pdfBytes);
 
         // 4️⃣ PDF 다운로드 응답

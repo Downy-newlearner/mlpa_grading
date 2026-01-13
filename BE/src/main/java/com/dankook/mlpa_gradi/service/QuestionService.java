@@ -32,7 +32,7 @@ public class QuestionService {
         return QuestionMapper.toDto(saved);
     }
 
-    private final AiPdfClientService aiClientService;
+    private final PdfService pdfService;
 
     public String proxyQuestionsToAi(String examCode) {
         // 1. 조회
@@ -47,6 +47,6 @@ public class QuestionService {
                 .toList();
 
         // 3. 전송
-        return aiClientService.sendQuestions(dtos);
+        return pdfService.sendQuestions(dtos);
     }
 }

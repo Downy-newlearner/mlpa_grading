@@ -1,8 +1,8 @@
-package com.dankook.mlpa_gradi.controller.email;
+package com.dankook.mlpa_gradi.controller;
 
-import com.dankook.mlpa_gradi.dto.email.EmailRequest;
-import com.dankook.mlpa_gradi.dto.email.VerificationRequest;
-import com.dankook.mlpa_gradi.service.email.EmailVerificationService;
+import com.dankook.mlpa_gradi.dto.EmailRequest;
+import com.dankook.mlpa_gradi.dto.VerificationRequest;
+import com.dankook.mlpa_gradi.service.EmailVerificationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;

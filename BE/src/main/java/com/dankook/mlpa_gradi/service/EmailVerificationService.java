@@ -1,4 +1,4 @@
-package com.dankook.mlpa_gradi.service.email;
+package com.dankook.mlpa_gradi.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
