@@ -19,4 +19,15 @@ public class QuestionMapper {
         dto.setPoint(q.getPoint());
         return dto;
     }
+
+    public static Question toEntity(QuestionDto dto) {
+        Question q = new Question();
+        q.setQuestionNumber(dto.getQuestionNumber());
+        q.setQuestionType(dto.getQuestionType());
+        q.setSubQuestionNumber(dto.getSubQuestionNumber());
+        q.setAnswer(dto.getAnswer());
+        q.setAnswerCount(dto.getAnswerCount());
+        q.setPoint(dto.getPoint());
+        return q;
+    }
 }

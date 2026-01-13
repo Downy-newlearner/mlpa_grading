@@ -10,7 +10,7 @@ const createQuestion = (): Question => ({
     id: createId(),
     text: "",
     score: 0,
-    type: "multiple",
+    type: "objective",
     subQuestions: [],
 });
 
@@ -18,7 +18,7 @@ const createSubQuestion = (inheritedScore: number | string = 0): SubQuestion => 
     id: createId(),
     text: "",
     score: inheritedScore,
-    type: "multiple",
+    type: "objective",
 });
 
 export const useExamForm = () => {
@@ -55,7 +55,27 @@ export const useExamForm = () => {
         if (savedDraft) {
             try {
                 const parsed = JSON.parse(savedDraft);
-                const { questions: savedQ, examTitle: savedTitle, examDate: savedDate } = parsed;
+                let { questions: savedQ, examTitle: savedTitle, examDate: savedDate } = parsed;
+
+                // Migration: Type mapping
+                if (savedQ && Array.isArray(savedQ)) {
+                    savedQ = savedQ.map((q: any) => {
+                        const mapType = (t: string) => {
+                            if (t === "multiple") return "objective";
+                            if (t === "short") return "short_answer";
+                            if (t === "ox") return "binary";
+                            return t;
+                        };
+                        return {
+                            ...q,
+                            type: mapType(q.type),
+                            subQuestions: q.subQuestions?.map((sq: any) => ({
+                                ...sq,
+                                type: mapType(sq.type)
+                            })) || []
+                        };
+                    });
+                }
 
                 // Migration: If examDate is empty, clear the entire draft to get fresh defaults
                 if (!savedDate || savedDate.trim() === "") {

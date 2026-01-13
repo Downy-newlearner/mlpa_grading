@@ -20,6 +20,10 @@ spring:
         format_sql: true
         show_sql: true
 
+aws:
+  sqs:
+    queue-url: ${SQS_QUEUE_URL2:https://sqs.ap-northeast-2.amazonaws.com/309293113458/mlpa-id-result-queue.fifo}
+    grading-queue-url: ${SQS_QUEUE_URL:https://sqs.ap-northeast-2.amazonaws.com/309293113458/mlpa-grading-queue.fifo}
 
 ai:
   server:

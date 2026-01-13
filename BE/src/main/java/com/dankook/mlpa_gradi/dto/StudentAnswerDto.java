@@ -19,5 +19,7 @@ public class StudentAnswerDto {
     private float confidence;
     private boolean correct;
     private float score;
+    private float maxScore;
     private Long studentId;
+    private String comment;
 }

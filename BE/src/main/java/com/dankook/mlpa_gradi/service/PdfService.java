@@ -29,6 +29,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 
+import com.dankook.mlpa_gradi.dto.QuestionDto;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.util.List;
@@ -179,10 +180,23 @@ public class PdfService {
                 }
         }
 
-        public String sendQuestions(java.util.List<com.dankook.mlpa_gradi.dto.QuestionDto> questions) {
+        public List<QuestionDto> getAnswerKeyFromAi(String examCode) {
+                try {
+                        return aiWebClient.get()
+                                        .uri("/recognition/answer/key/" + examCode)
+                                        .retrieve()
+                                        .bodyToFlux(QuestionDto.class)
+                                        .collectList()
+                                        .block();
+                } catch (Exception e) {
+                        throw new IllegalStateException("Failed to fetch answer key from AI server", e);
+                }
+        }
+
+        public String sendQuestions(List<QuestionDto> questions) {
                 try {
                         return aiWebClient.post()
-                                        .uri("/grading/questions")
+                                        .uri("/recognition/answer/start")
                                         .bodyValue(questions)
                                         .retrieve()
                                         .bodyToMono(String.class)
@@ -191,7 +205,7 @@ public class PdfService {
                         throw new IllegalStateException(
                                         "AI Server error: " + e.getResponseBodyAsString(), e);
                 } catch (Exception e) {
-                        throw new IllegalStateException("Failed to send questions to AI server", e);
+                        throw new IllegalStateException("Failed to trigger answer recognition on AI server", e);
                 }
         }
 }

@@ -19,7 +19,7 @@ public class FeedbackService {
 
         try {
             String response = aiWebClient.post()
-                    .uri("/fallback/")
+                    .uri("/fallback/student-id/")
                     .bodyValue(request)
                     .retrieve()
                     .bodyToMono(String.class)

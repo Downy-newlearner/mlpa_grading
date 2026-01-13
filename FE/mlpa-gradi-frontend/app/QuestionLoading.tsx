@@ -5,17 +5,19 @@ import { useRouter } from "next/navigation";
 
 interface QuestionLoadingProps {
     examCode?: string;
+    totalStudents?: number;
     onComplete?: () => void;
 }
 
 const QuestionLoading: React.FC<QuestionLoadingProps> = ({
     examCode = "UNKNOWN",
+    totalStudents = 0,
     onComplete
 }) => {
     const router = useRouter();
     const [seconds, setSeconds] = useState(0);
     const [progressCount, setProgressCount] = useState(0);
-    const [totalCount, setTotalCount] = useState(0);
+    const [totalCount, setTotalCount] = useState(totalStudents);
     const [timedOut, setTimedOut] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
     const lastMessageTimeRef = useRef<number>(Date.now());
@@ -70,7 +72,26 @@ const QuestionLoading: React.FC<QuestionLoadingProps> = ({
     useEffect(() => {
         let isCancelled = false;
 
-        // ✅ SSE for real-time updates
+        // ✅ 1. Get initial state immediately
+        const fetchInitialState = async () => {
+            try {
+                const res = await fetch(`/api/storage/progress/${examCode}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (!isCancelled) {
+                        if (data.index !== undefined) setProgressCount(data.index);
+                        if (data.total !== undefined && data.total > 0) setTotalCount(data.total);
+                        if (data.status === "completed" && onComplete) onComplete();
+                    }
+                }
+            } catch (err) {
+                console.warn("⚠️ Failed to fetch initial state, waiting for SSE...");
+            }
+        };
+
+        fetchInitialState();
+
+        // ✅ 2. SSE for real-time updates
         const eventSource = new EventSource(
             `http://127.0.0.1:8080/api/storage/sse/connect?examCode=${examCode}`
         );
@@ -84,7 +105,7 @@ const QuestionLoading: React.FC<QuestionLoadingProps> = ({
                 const type = payload.type;
                 const data = (type === "connected") ? payload : payload.data;
 
-                // We expect 'question_recognition_update' or similar
+                // We expect 'question_recognition_update' or 'recognition_update'
                 if (type === "connected" || type === "question_recognition_update" || type === "recognition_update") {
                     if (data.index !== undefined) setProgressCount(data.index);
                     if (data.total !== undefined && data.total > 0) setTotalCount(data.total);

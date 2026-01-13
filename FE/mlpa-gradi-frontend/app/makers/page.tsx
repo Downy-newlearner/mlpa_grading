@@ -41,8 +41,8 @@ const makers: Maker[] = [
         email: "woniwory@gmail.com",
         ig: "@_swan_1206",
         githubId: "woniwory",
-        image: "/makers/jeong_sungwon.jpg",
-        objectPosition: "center 25%",
+        image: "/makers/jeong_sungwon_new.png",
+        objectPosition: "center 8%",
     },
     {
         name: "조성빈",

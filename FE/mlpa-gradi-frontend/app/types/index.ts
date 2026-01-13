@@ -1,4 +1,4 @@
-export type QuestionType = "multiple" | "short" | "ox";
+export type QuestionType = "binary" | "short_answer" | "objective" | "others";
 
 export interface SubQuestion {
     id: string;

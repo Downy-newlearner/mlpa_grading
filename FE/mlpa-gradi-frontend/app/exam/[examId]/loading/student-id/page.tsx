@@ -21,7 +21,7 @@ const StudentIdLoadingPage = () => {
     }, []);
 
     const handleNext = () => {
-        router.push(`/exam/${examCode}/grading/feedback`);
+        router.push(`/exam/${examCode}/grading/feedback?total=${total}`);
     };
 
     if (status === "loading") {

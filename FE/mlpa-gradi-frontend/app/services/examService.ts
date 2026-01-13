@@ -127,5 +127,13 @@ export const examService = {
             method: "DELETE",
         });
         if (!response.ok) throw new Error("Failed to stop process");
+    },
+
+    // ✅ 문항 인식 프록시 결과 요청 (AI 서버 -> DB 저장 트리거)
+    async triggerQuestionProxy(examCode: string): Promise<void> {
+        const response = await fetch(`${API_BASE}/questions/proxy/${examCode}`, {
+            method: "POST",
+        });
+        if (!response.ok) throw new Error("Failed to trigger question proxy");
     }
 };

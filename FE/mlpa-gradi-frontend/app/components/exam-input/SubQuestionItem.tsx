@@ -1,6 +1,8 @@
 import React from "react";
 import { SubQuestion, QuestionType } from "../../types";
 
+import { TypeSelector } from "./TypeSelector";
+
 interface SubQuestionItemProps {
     qId: string;
     sub: SubQuestion;
@@ -14,6 +16,7 @@ interface SubQuestionItemProps {
     insertSubQuestion: (qId: string, index: number) => void;
     removeSubQuestion: (qId: string, sqId: string) => void;
     updateSubQuestion: (qId: string, sqId: string, patch: Partial<Omit<SubQuestion, "id">>) => void;
+    handleKeyDown: (e: React.KeyboardEvent, index: number, isSub?: boolean, subIndex?: number) => void;
 }
 
 const PlusIcon = () => (
@@ -42,7 +45,8 @@ export const SubQuestionItem: React.FC<SubQuestionItemProps> = ({
     handleDrop,
     insertSubQuestion,
     removeSubQuestion,
-    updateSubQuestion
+    updateSubQuestion,
+    handleKeyDown
 }) => {
     const subLabel = `${parentIndex + 1}-${index + 1}`;
     const isSubDragging = draggingId === sub.id;
@@ -94,9 +98,12 @@ export const SubQuestionItem: React.FC<SubQuestionItemProps> = ({
                     className="w-full border border-black p-2 rounded focus:outline-none focus:ring focus:ring-purple-300"
                     value={sub.text}
                     placeholder="세부 문항 정답을 입력하세요"
+                    id={`sub-input-${parentIndex}-${index}`}
+                    onKeyDown={(e) => handleKeyDown(e, parentIndex, true, index)}
                     onChange={(e) =>
                         updateSubQuestion(qId, sub.id, { text: e.target.value })
                     }
+                    onFocus={(e) => e.target.scrollIntoView({ behavior: 'smooth', block: 'center' })}
                 />
             </div>
 
@@ -108,29 +115,33 @@ export const SubQuestionItem: React.FC<SubQuestionItemProps> = ({
                         min={0}
                         className="w-full border border-black p-2 rounded focus:outline-none focus:ring focus:ring-purple-300 bg-white"
                         value={sub.score}
+                        onKeyDown={(e) => {
+                            if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                                e.preventDefault();
+                            }
+                            handleKeyDown(e, parentIndex, true, index);
+                        }}
                         onChange={(e) =>
                             updateSubQuestion(qId, sub.id, {
                                 score: e.target.value,
                             })
                         }
+                        onFocus={(e) => e.target.scrollIntoView({ behavior: 'smooth', block: 'center' })}
                     />
                 </div>
 
                 <div>
-                    <label className="block text-sm font-semibold mb-1">문제 유형<span className="text-red-500">*</span></label>
-                    <select
-                        className="w-full border border-black p-2 rounded focus:outline-none focus:ring focus:ring-purple-300 cursor-pointer"
-                        value={sub.type}
-                        onChange={(e) =>
-                            updateSubQuestion(qId, sub.id, {
-                                type: e.target.value as QuestionType,
-                            })
-                        }
-                    >
-                        <option value="multiple">객관식</option>
-                        <option value="short">단답형</option>
-                        <option value="ox">OX</option>
-                    </select>
+                    <div className="md:col-span-2" onFocus={(e) => (e.currentTarget as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'center' })}>
+                        <label className="block text-sm font-semibold mb-2">문제 유형<span className="text-red-500">*</span></label>
+                        <TypeSelector
+                            value={sub.type}
+                            onChange={(val) =>
+                                updateSubQuestion(qId, sub.id, {
+                                    type: val,
+                                })
+                            }
+                        />
+                    </div>
                 </div>
             </div>
         </div>
