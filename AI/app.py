@@ -146,6 +146,7 @@ async def lifespan(app: FastAPI):
         
         queue_url = os.environ.get("SQS_QUEUE_URL")
         result_queue_url = os.environ.get("SQS_QUEUE_URL2")
+        fallback_queue_url = os.environ.get("SQS_QUEUE_URL3")
         aws_key = os.environ.get("AWS_ACCESS_KEY_ID")
         aws_secret = os.environ.get("AWS_SECRET_ACCESS_KEY")
         
@@ -156,7 +157,8 @@ async def lifespan(app: FastAPI):
                 aws_secret_access_key=aws_secret,
                 region_name=os.environ.get("AWS_DEFAULT_REGION", "ap-northeast-2"),
                 s3_bucket=os.environ.get("S3_BUCKET", "mlpa-gradi"),
-                result_queue_url=result_queue_url
+                result_queue_url=result_queue_url,
+                fallback_queue_url=fallback_queue_url
             )
             
             # 학번 추출 콜백 설정
@@ -358,18 +360,25 @@ async def fallback_student_id(request: StudentIdFallbackRequest):
         except Exception as e:
             errors.append(f"{item.fileName}: {str(e)}")
     
-    if errors:
-        return GenericResponse(
-            success=False,
-            message=f"일부 실패: {'; '.join(errors)}",
-            data={"uploadedCount": len(uploaded_keys), "s3Keys": uploaded_keys}
-        )
+    # 레거시 호환성을 위해 flat 구조로 반환 (GenericResponse 모델 사용하되 data 필드 활용 대신 직접 구성하거나 GenericResponse 구조 무시)
+    # 하지만 response_model=GenericResponse로 되어 있으므로, GenericResponse 자체가 유연하거나, 
+    # 호환성을 위해 dict를 반환하고 response_model을 제거/변경해야 함.
+    # 기존 코드 호환을 위해 response_model을 제거하고 dict를 반환합니다.
     
-    return GenericResponse(
-        success=True,
-        message=f"{len(uploaded_keys)}개 이미지 이동 완료",
-        data={"uploadedCount": len(uploaded_keys), "s3Keys": uploaded_keys}
-    )
+    if errors:
+        return {
+            "success": False,
+            "message": f"일부 실패: {'; '.join(errors)}",
+            "uploadedCount": len(uploaded_keys),
+            "s3Keys": uploaded_keys
+        }
+    
+    return {
+        "success": True,
+        "message": f"{len(uploaded_keys)}개 이미지 이동 완료",
+        "uploadedCount": len(uploaded_keys),
+        "s3Keys": uploaded_keys
+    }
 
 
 @app.get("/exams/")
@@ -400,6 +409,11 @@ async def fallback_answer(request: AnswerFallbackRequest):
     - 사용자가 수정한 답안을 저장
     - 채점 시 수정값 병합
     """
+    print("=" * 60)
+    print(f"[API] 답안 Fallback 요청 수신: /fallback/answer/")
+    print(f"Payload: {request.json(indent=2, ensure_ascii=False)}")
+    print("=" * 60)
+
     if not ModelStore.fallback_store:
         raise HTTPException(status_code=503, detail="Fallback store가 초기화되지 않았습니다.")
     
@@ -422,6 +436,10 @@ async def get_fallback_status(exam_code: str):
     
     - Fallback이 필요한 ROI 목록과 현재 수정 현황
     """
+    print("=" * 60)
+    print(f"[API] 답안 Fallback 상태 조회: /fallback/answer/{exam_code}")
+    print("=" * 60)
+
     if not ModelStore.fallback_store:
         raise HTTPException(status_code=503, detail="Fallback store가 초기화되지 않았습니다.")
     
@@ -462,6 +480,11 @@ async def start_answer_recognition(
     - 답안지 메타데이터(JSON)를 받아 배치 처리를 시작합니다.
     - S3의 original/{examCode}/ 이미지들을 찾아 답안 인식을 수행합니다.
     """
+    print("=" * 60)
+    print(f"[API] 답안 인식 시작 요청: /recognition/answer/start")
+    print(f"Metadata: {json.dumps(metadata, indent=2, ensure_ascii=False)}")
+    print("=" * 60)
+
     if not ModelStore.sqs_worker:
         raise HTTPException(status_code=503, detail="Worker가 초기화되지 않았습니다.")
     

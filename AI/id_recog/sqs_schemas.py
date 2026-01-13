@@ -279,6 +279,74 @@ class AnswerRecognitionOutputMessage:
         )
 
 
+# 이벤트 타입 상수 추가
+EVENT_ANSWER_FALLBACK = "ANSWER_FALLBACK"
+
+@dataclass
+class AnswerFallbackMessage:
+    """
+    답안 인식 Fallback 알림 메시지 (AI → BE, SQS_QUEUE_URL3)
+    
+    Low confidence ROI를 S3에 업로드하고, 그 정보를 백엔드에 알립니다.
+    
+    {
+        "eventType": "ANSWER_FALLBACK",
+        "examCode": "AI_2024_MID",
+        "studentId": "20201234",
+        "questionNumber": 2,
+        "subQuestionNumber": 1,
+        "recAnswer": null,
+        "confidence": 0.3,
+        "s3Key": "answer/AI_2024_MID/20201234/2/1/roi.jpg"
+    }
+    """
+    event_type: str
+    exam_code: str
+    student_id: str
+    question_number: int
+    sub_question_number: int
+    rec_answer: Optional[str]
+    confidence: float
+    s3_key: str
+    
+    def to_dict(self) -> dict:
+        return {
+            "eventType": self.event_type,
+            "examCode": self.exam_code,
+            "studentId": self.student_id,
+            "questionNumber": self.question_number,
+            "subQuestionNumber": self.sub_question_number,
+            "recAnswer": self.rec_answer,
+            "confidence": round(self.confidence, 4),
+            "s3Key": self.s3_key
+        }
+    
+    def to_json(self) -> str:
+        return json.dumps(self.to_dict(), ensure_ascii=False, indent=2)
+    
+    @classmethod
+    def create(
+        cls,
+        exam_code: str,
+        student_id: str,
+        question_number: int,
+        sub_question_number: int,
+        rec_answer: Optional[str],
+        confidence: float,
+        s3_key: str
+    ) -> "AnswerFallbackMessage":
+        return cls(
+            event_type=EVENT_ANSWER_FALLBACK,
+            exam_code=exam_code,
+            student_id=student_id,
+            question_number=question_number,
+            sub_question_number=sub_question_number,
+            rec_answer=rec_answer,
+            confidence=confidence,
+            s3_key=s3_key
+        )
+
+
 @dataclass
 class GradingResultMessage:
     """

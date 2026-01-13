@@ -12,7 +12,7 @@ from dataclasses import dataclass
 try:
     from .schemas import BBox
 except ImportError:
-    from schemas import BBox
+    from id_recog.schemas import BBox
 
 
 @dataclass

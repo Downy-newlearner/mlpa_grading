@@ -27,8 +27,12 @@ logger = logging.getLogger(__name__)
 # Modules Import
 from answer_recog.find_answer_section import find_answer_section, AnswerSectionResult
 from answer_recog.row_segmentation import segment_rows, segment_text_lines
-from answer_recog.answer_extraction import extract_text_from_row, refined_answer, get_ocr_model
-from answer_recog.roi_extraction import extract_roi_from_row
+try:
+    from answer_extraction import extract_text_from_row, refined_answer, get_ocr_model
+    from roi_extraction import extract_roi_from_row, pad_to_square
+except ImportError:
+    from answer_recog.answer_extraction import extract_text_from_row, refined_answer, get_ocr_model
+    from answer_recog.roi_extraction import extract_roi_from_row, pad_to_square
 
 def load_layout_model():
     print("Loading Layout Model...")
@@ -212,22 +216,25 @@ def main():
                     print(f"    ⚠️ Sub-row missing for Q{q_info.number}-{sub_idx+1}")
                     sub_img = np.zeros((10, 10, 3), dtype=np.uint8)
                     
-                # 이미 ROI 추출(공백제거)된 상태에서 잘랐으므로 그대로 사용
-                # 필요하다면 한번 더 extract_roi_from_row 할 수 있음 (Sub-row 내부의 미세 공백 제거)
-                # 여기서는 바로 사용
-                current_rois_imgs.append(sub_img)
+                # [NEW] 최종 결과물 정사각형 패딩
+                final_sub_roi = pad_to_square(sub_img)
+
+                current_rois_imgs.append(final_sub_roi)
                 current_sub_indices.append(sub_idx + 1) # 1-base
                 
                 # 저장
-                cv2.imwrite(os.path.join(output_dir, f"roi_q{q_info.number}_{sub_idx+1}.jpg"), sub_img)
+                cv2.imwrite(os.path.join(output_dir, f"roi_q{q_info.number}_{sub_idx+1}.jpg"), final_sub_roi)
         
         # Case 2: 단일 문제 -> cleaned_row가 곧 ROI
         else:
-            current_rois_imgs.append(cleaned_row)
+            # [NEW] 최종 결과물 정사각형 패딩
+            final_roi = pad_to_square(cleaned_row)
+
+            current_rois_imgs.append(final_roi)
             current_sub_indices.append(0) # 0 for no sub-question
             
             # 저장
-            cv2.imwrite(os.path.join(output_dir, f"roi_q{q_info.number}.jpg"), cleaned_row)
+            cv2.imwrite(os.path.join(output_dir, f"roi_q{q_info.number}.jpg"), final_roi)
             
         # Recognition (OCR)
         for roi_idx, img in enumerate(current_rois_imgs):
