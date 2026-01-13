@@ -1,0 +1,96 @@
+{
+  "test_timestamp": "2026-01-14T01:05:46.906914",
+  "input_image": "/home/jdh251425/MLPA_auto_grading/mlpa_grading/AI/processed_data/AI 2023 Mid_cleaned/AI 2023 Mid - 1.jpg",
+  "image_size": "1993 x 2786",
+  "output_dir": "test_output/module_test",
+  "modules": {
+    "table_detection": {
+      "module_name": "Table Detection",
+      "success": true,
+      "passed": "4/4",
+      "checks": {
+        "table_detected": true,
+        "confidence_adequate": true,
+        "area_ratio_adequate": true,
+        "bbox_valid": true
+      },
+      "metrics": {
+        "total_boxes": 6,
+        "table_boxes_count": 1,
+        "table_bbox": {
+          "x1": 204,
+          "y1": 455,
+          "x2": 1821,
+          "y2": 2473,
+          "width": 1616,
+          "height": 2018,
+          "area": 3262768
+        },
+        "table_confidence": 0.9894694089889526,
+        "table_area_ratio": "58.8%",
+        "visualization": "test_output/module_test/m1_table_detection.jpg"
+      },
+      "errors": [],
+      "warnings": []
+    },
+    "column_separator": {
+      "module_name": "Column Separator Detection",
+      "success": false,
+      "passed": "4/5",
+      "checks": {
+        "profile_computed": true,
+        "peaks_detected": true,
+        "peaks_count_adequate": true,
+        "answer_separator_found": true,
+        "answer_width_reasonable": false
+      },
+      "metrics": {
+        "rotation_angle": "0.49°",
+        "table_size": "1634 x 2031",
+        "profile_length": 1634,
+        "peaks_count": 4,
+        "peaks_positions": [
+          21,
+          204,
+          208,
+          308
+        ],
+        "answer_column_x": 311,
+        "answer_column_ratio": "81.0%",
+        "visualization": "test_output/module_test/m2_column_separator.jpg",
+        "table_crop": "test_output/module_test/m2_table_crop.jpg"
+      },
+      "errors": [],
+      "warnings": [
+        "Unusual answer column width: 81.0%"
+      ]
+    },
+    "answer_section_crop": {
+      "module_name": "Answer Section Crop",
+      "success": false,
+      "passed": "4/5",
+      "checks": {
+        "crop_success": true,
+        "image_valid": true,
+        "width_adequate": true,
+        "method_is_projection": true,
+        "ratio_reasonable": false
+      },
+      "metrics": {
+        "answer_section_size": "1323 x 2031",
+        "answer_column_x_start": 311,
+        "crop_method": "projection_profile",
+        "rotation_angle": 0.4901142788960917,
+        "answer_table_ratio": "81.0%",
+        "header_region_height": 203,
+        "answer_section_path": "test_output/module_test/m3_answer_section.jpg",
+        "table_visualization": "test_output/module_test/m3_table_with_separator.jpg"
+      },
+      "errors": [],
+      "warnings": [
+        "[MANUAL CHECK] Verify header row ('Answer') is present in top 203px"
+      ]
+    }
+  },
+  "overall_success": false
+}

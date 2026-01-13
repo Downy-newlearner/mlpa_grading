@@ -1,0 +1,157 @@
+{
+  "examCode": "TEST_EXAM",
+  "totalQuestions": 19,
+  "results": [
+    {
+      "questionNumber": 1,
+      "subQuestionNumber": 0,
+      "recAnswer": "4",
+      "rawText": "4",
+      "confidence": 0.9922637939453125,
+      "skipped": false
+    },
+    {
+      "questionNumber": 2,
+      "subQuestionNumber": 0,
+      "recAnswer": "7",
+      "rawText": "7",
+      "confidence": 0.31667929887771606,
+      "skipped": false
+    },
+    {
+      "questionNumber": 3,
+      "subQuestionNumber": 0,
+      "recAnswer": "2",
+      "rawText": "2",
+      "confidence": 0.9995342493057251,
+      "skipped": false
+    },
+    {
+      "questionNumber": 4,
+      "subQuestionNumber": 0,
+      "recAnswer": "5",
+      "rawText": "S",
+      "confidence": 0.9200919270515442,
+      "skipped": false
+    },
+    {
+      "questionNumber": 5,
+      "subQuestionNumber": 0,
+      "recAnswer": "2",
+      "rawText": "2",
+      "confidence": 0.999613344669342,
+      "skipped": false
+    },
+    {
+      "questionNumber": 6,
+      "subQuestionNumber": 0,
+      "recAnswer": "9",
+      "rawText": "9",
+      "confidence": 0.9960636496543884,
+      "skipped": false
+    },
+    {
+      "questionNumber": 7,
+      "subQuestionNumber": 0,
+      "recAnswer": "7",
+      "rawText": "n",
+      "confidence": 0.9908067584037781,
+      "skipped": false
+    },
+    {
+      "questionNumber": 8,
+      "subQuestionNumber": 0,
+      "recAnswer": "9",
+      "rawText": "9",
+      "confidence": 0.9948345422744751,
+      "skipped": false
+    },
+    {
+      "questionNumber": 9,
+      "subQuestionNumber": 0,
+      "recAnswer": "4",
+      "rawText": "4",
+      "confidence": 0.9995220899581909,
+      "skipped": false
+    },
+    {
+      "questionNumber": 10,
+      "subQuestionNumber": 0,
+      "recAnswer": null,
+      "confidence": null,
+      "skipped": true
+    },
+    {
+      "questionNumber": 11,
+      "subQuestionNumber": 1,
+      "recAnswer": "",
+      "rawText": "",
+      "confidence": 0.0,
+      "skipped": false
+    },
+    {
+      "questionNumber": 11,
+      "subQuestionNumber": 2,
+      "recAnswer": "8",
+      "rawText": "8",
+      "confidence": 0.6718676090240479,
+      "skipped": false
+    },
+    {
+      "questionNumber": 11,
+      "subQuestionNumber": 3,
+      "recAnswer": "9",
+      "rawText": "9",
+      "confidence": 0.8599681854248047,
+      "skipped": false
+    },
+    {
+      "questionNumber": 11,
+      "subQuestionNumber": 4,
+      "recAnswer": "8",
+      "rawText": "8",
+      "confidence": 0.9869785308837891,
+      "skipped": false
+    },
+    {
+      "questionNumber": 12,
+      "subQuestionNumber": 0,
+      "recAnswer": "4",
+      "rawText": "4",
+      "confidence": 0.9997163414955139,
+      "skipped": false
+    },
+    {
+      "questionNumber": 13,
+      "subQuestionNumber": 0,
+      "recAnswer": "4",
+      "rawText": "4",
+      "confidence": 0.999903678894043,
+      "skipped": false
+    },
+    {
+      "questionNumber": 14,
+      "subQuestionNumber": 0,
+      "recAnswer": "",
+      "rawText": "-",
+      "confidence": 0.5631594657897949,
+      "skipped": false
+    },
+    {
+      "questionNumber": 15,
+      "subQuestionNumber": 0,
+      "recAnswer": "2",
+      "rawText": "2",
+      "confidence": 0.9997270703315735,
+      "skipped": false
+    },
+    {
+      "questionNumber": 16,
+      "subQuestionNumber": 0,
+      "recAnswer": "1",
+      "rawText": "1",
+      "confidence": 0.9208950400352478,
+      "skipped": false
+    }
+  ]
+}

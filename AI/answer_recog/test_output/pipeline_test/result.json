@@ -1,0 +1,160 @@
+{
+  "examCode": "EXAM_CODE_123",
+  "studentId": "32204659",
+  "processedAt": "2026-01-14T01:28:33.380264",
+  "totalRows": 17,
+  "results": [
+    {
+      "questionNumber": 1,
+      "subQuestionNumber": 0,
+      "scoringType": "objective",
+      "recAnswer": "AnSVe",
+      "rawText": "AnSVe",
+      "confidence": 0.4271358847618103,
+      "skipped": false
+    },
+    {
+      "questionNumber": 2,
+      "subQuestionNumber": 0,
+      "scoringType": "objective",
+      "recAnswer": "",
+      "rawText": "",
+      "confidence": 0.0,
+      "skipped": false
+    },
+    {
+      "questionNumber": 3,
+      "subQuestionNumber": 0,
+      "scoringType": "objective",
+      "recAnswer": "C",
+      "rawText": "C",
+      "confidence": 0.6176267862319946,
+      "skipped": false
+    },
+    {
+      "questionNumber": 4,
+      "subQuestionNumber": 0,
+      "scoringType": "objective",
+      "recAnswer": "",
+      "rawText": "",
+      "confidence": 0.0,
+      "skipped": false
+    },
+    {
+      "questionNumber": 5,
+      "subQuestionNumber": 0,
+      "scoringType": "objective",
+      "recAnswer": "5",
+      "rawText": "5",
+      "confidence": 0.9734406471252441,
+      "skipped": false
+    },
+    {
+      "questionNumber": 6,
+      "subQuestionNumber": 0,
+      "scoringType": "objective",
+      "recAnswer": "",
+      "rawText": "",
+      "confidence": 0.0,
+      "skipped": false
+    },
+    {
+      "questionNumber": 7,
+      "subQuestionNumber": 0,
+      "scoringType": "objective",
+      "recAnswer": "",
+      "rawText": "",
+      "confidence": 0.0,
+      "skipped": false
+    },
+    {
+      "questionNumber": 8,
+      "subQuestionNumber": 0,
+      "scoringType": "objective",
+      "recAnswer": "",
+      "rawText": "",
+      "confidence": 0.0,
+      "skipped": false
+    },
+    {
+      "questionNumber": 9,
+      "subQuestionNumber": 0,
+      "scoringType": "objective",
+      "recAnswer": "",
+      "rawText": "",
+      "confidence": 0.0,
+      "skipped": false
+    },
+    {
+      "questionNumber": 10,
+      "subQuestionNumber": 0,
+      "scoringType": "others",
+      "recAnswer": null,
+      "confidence": null,
+      "skipped": true
+    },
+    {
+      "questionNumber": 11,
+      "subQuestionNumber": 0,
+      "scoringType": "objective",
+      "recAnswer": "xYdS1S2S3",
+      "rawText": "x Y d S1 S2 S3",
+      "confidence": 0.924279530843099,
+      "skipped": false
+    },
+    {
+      "questionNumber": 11,
+      "subQuestionNumber": 1,
+      "scoringType": "objective",
+      "recAnswer": "",
+      "rawText": "",
+      "confidence": 0.0,
+      "skipped": false
+    },
+    {
+      "questionNumber": 11,
+      "subQuestionNumber": 2,
+      "scoringType": "objective",
+      "recAnswer": "",
+      "rawText": "",
+      "confidence": 0.0,
+      "skipped": false
+    },
+    {
+      "questionNumber": 11,
+      "subQuestionNumber": 3,
+      "scoringType": "objective",
+      "recAnswer": "",
+      "rawText": "",
+      "confidence": 0.0,
+      "skipped": false
+    },
+    {
+      "questionNumber": 12,
+      "subQuestionNumber": 0,
+      "scoringType": "objective",
+      "recAnswer": "",
+      "rawText": "",
+      "confidence": 0.0,
+      "skipped": false
+    },
+    {
+      "questionNumber": 13,
+      "subQuestionNumber": 0,
+      "scoringType": "objective",
+      "recAnswer": "",
+      "rawText": "",
+      "confidence": 0.0,
+      "skipped": false
+    },
+    {
+      "questionNumber": 14,
+      "subQuestionNumber": 0,
+      "scoringType": "objective",
+      "recAnswer": "",
+      "rawText": "",
+      "confidence": 0.0,
+      "skipped": false
+    }
+  ]
+}

@@ -1,0 +1,44 @@
+PP-OCRv5_mobile_rec OCR 테스트 결과
+테스트 시간: 2026-01-01 21:13:08
+데이터 경로: /home/jdh251425/MLPA_auto_grading/Data/multi_digits_test_data
+총 이미지 수: 35
+================================================================================
+
+[001] multiDigits_1.png              | OCR: "32131083" | Conf: 0.9083
+[002] multiDigits_2.png              | OCR: "32144363" | Conf: 0.8678
+[003] multiDigits_3.png              | OCR: "32162958" | Conf: 0.9355
+[004] multiDigits_4.png              | OCR: "32161108" | Conf: 0.9628
+[005] multiDigits_5.png              | OCR: "32131099" | Conf: 0.8499
+[006] multiDigits_6.png              | OCR: "32161086" | Conf: 0.9519
+[007] multiDigits_7.png              | OCR: "32210278" | Conf: 0.9757
+[008] multiDigits_8.png              | OCR: "32210361" | Conf: 0.9646
+[009] multiDigits_9.png              | OCR: "32217072" | Conf: 0.9580
+[010] multiDigits_10.png             | OCR: "32220509" | Conf: 0.8636
+[011] multiDigits_11.png             | OCR: "7221050" | Conf: 0.8195
+[012] multiDigits_12.png             | OCR: "32217098" | Conf: 0.9889
+[013] multiDigits_13.png             | OCR: "32210613" | Conf: 0.8633
+[014] multiDigits_14.png             | OCR: "3490614" | Conf: 0.9344
+[015] multiDigits_15.png             | OCR: "32210750" | Conf: 0.8669
+[016] multiDigits_16.png             | OCR: "32210790" | Conf: 0.9564
+[017] multiDigits_17.png             | OCR: "32210799" | Conf: 0.8664
+[018] multiDigits_18.png             | OCR: "321901nn" | Conf: 0.9207
+[019] multiDigits_19.png             | OCR: "32190996" | Conf: 0.8046
+[020] multiDigits_20.png             | OCR: "32191030" | Conf: 0.9853
+[021] multiDigits_21.png             | OCR: "Student ID : 30320n4" | Conf: 0.8662
+[022] multiDigits_22.png             | OCR: "Student ID : 72202446" | Conf: 0.8673
+[023] multiDigits_23.png             | OCR: "Student ID : 322|2100" | Conf: 0.9312
+[024] multiDigits_24.png             | OCR: "Student ID :32222190" | Conf: 0.8861
+[025] multiDigits_25.png             | OCR: "student ID: 32219372/2119" | Conf: 0.7861
+[026] multiDigits_26.png             | OCR: "Student ID: 322113n7" | Conf: 0.8417
+[027] multiDigits_27.png             | OCR: "Student D: 3213183" | Conf: 0.9291
+[028] multiDigits_28.png             | OCR: "Student ID 32204502" | Conf: 0.9619
+[029] multiDigits_29.png             | OCR: "Student D: 32141837" | Conf: 0.9822
+[030] multiDigits_30.png             | OCR: "Student D: 32131083" | Conf: 0.9127
+[031] multiDigits_31.png             | OCR: "Student D: 32141837" | Conf: 0.9831
+[032] multiDigits_32.png             | OCR: "Student D: 32110261" | Conf: 0.9218
+[033] multiDigits_33.png             | OCR: "盟：32190192" | Conf: 0.8705
+[034] multiDigits_34.png             | OCR: "盟：32210278" | Conf: 0.8582
+[035] multiDigits_35.png             | OCR: "：32210361" | Conf: 0.8569
+
+================================================================================
+테스트 완료
