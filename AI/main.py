@@ -36,6 +36,7 @@ from typing import List, Optional
 
 class QuestionModel(BaseModel):
     questionId: Optional[int] = None
+    examCode: Optional[str] = None
     questionNumber: int
     questionType: Optional[str] = None
     subQuestionNumber: Optional[int] = None

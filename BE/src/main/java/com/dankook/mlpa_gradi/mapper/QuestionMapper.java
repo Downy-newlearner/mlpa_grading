@@ -8,6 +8,9 @@ public class QuestionMapper {
     public static QuestionDto toDto(Question q) {
         QuestionDto dto = new QuestionDto();
         dto.setQuestionId(q.getQuestionId());
+        if (q.getExam() != null) {
+            dto.setExamCode(q.getExam().getExamCode());
+        }
         dto.setQuestionNumber(q.getQuestionNumber());
         dto.setQuestionType(q.getQuestionType());
         dto.setSubQuestionNumber(q.getSubQuestionNumber());

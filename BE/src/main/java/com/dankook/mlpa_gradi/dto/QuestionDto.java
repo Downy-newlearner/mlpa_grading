@@ -10,6 +10,7 @@ import lombok.Setter;
 public class QuestionDto {
 
     private Long questionId;
+    private String examCode;
     private int questionNumber;
     private String questionType;
     private Integer subQuestionNumber;
@@ -20,10 +21,7 @@ public class QuestionDto {
 }
 
 //
-//    // ✅ 외래 키 설정
-//    @ManyToOne(fetch = FetchType.LAZY)
-//    @JoinColumn(name = "student_response_id")  // 이 컬럼이 foreign key가 됨
-//    private StudentResponse studentResponse;
-
-
-
+// // ✅ 외래 키 설정
+// @ManyToOne(fetch = FetchType.LAZY)
+// @JoinColumn(name = "student_response_id") // 이 컬럼이 foreign key가 됨
+// private StudentResponse studentResponse;
