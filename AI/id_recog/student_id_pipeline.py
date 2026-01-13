@@ -15,8 +15,8 @@ import numpy as np
 from PIL import Image
 from typing import Any
 
-from schemas import StudentIdExtractionResult, Config, BBox
-from layout import (
+from id_recog.schemas import StudentIdExtractionResult, Config, BBox
+from id_recog.layout import (
     detect_all_bboxes,
     get_non_table_boxes,
     get_table_boxes,
@@ -24,8 +24,8 @@ from layout import (
     make_header_image,
     LayoutBox
 )
-from ocr import ppocr_extract, vlm_extract_student_id
-from normalize_and_validate import (
+from id_recog.ocr import ppocr_extract, vlm_extract_student_id
+from id_recog.normalize_and_validate import (
     normalize_candidate,
     is_valid_format,
     should_fallback,

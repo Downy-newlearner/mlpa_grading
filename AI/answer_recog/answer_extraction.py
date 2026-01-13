@@ -109,33 +109,58 @@ def extract_text_from_row(row_image: np.ndarray) -> Tuple[str, float]:
 def refined_answer(text: str) -> Tuple[str, bool]:
     """
     OCR 텍스트를 정제하여 최종 답안 형식으로 변환
+    
+    규칙:
+    1. 공백 제거 및 소문자 변환 (a-j 범위 매칭을 위해)
+    2. 오인식 보정 (사용자 규칙 포함)
+       - n -> 7
+       - s, S -> 5
+       - z -> 2
+       - o -> 0
+       - q -> 9
+       - l, I, | -> 1
+    3. Whitelist 필터링 (0-9, a-j)
     """
     if not text:
         return "", False
     
-    # 공백 제거
+    # 0. 기본 전처리
     text = text.replace(" ", "")
     
-    # 1. 원문자 변환 매핑
+    # 1. 특수문자/원문자 변환
     circle_map = {
         '①': '1', '②': '2', '③': '3', '④': '4', '⑤': '5',
         '⑥': '6', '⑦': '7', '⑧': '8', '⑨': '9', '⑩': '10',
         '⑪': '11', '⑫': '12', '⑬': '13', '⑭': '14', '⑮': '15',
         '❶': '1', '❷': '2', '❸': '3', '❹': '4', '❺': '5',
-        'Ⓐ': 'A', 'Ⓑ': 'B', 'Ⓒ': 'C', 'Ⓓ': 'D', 'Ⓔ': 'E'
+        'Ⓐ': 'a', 'Ⓑ': 'b', 'Ⓒ': 'c', 'Ⓓ': 'd', 'Ⓔ': 'e'
     }
-    
     for circle, number in circle_map.items():
         text = text.replace(circle, number)
-        
-    # 2. 괄호 내 텍스트 추출
-    # 예: "(3)" -> "3", "[정답]3" -> "3"
-    match = re.search(r'[\(\[\{]([\d\w]{1,2})[\)\]\}]', text)
-    if match:
-        return match.group(1), True
     
-    # 3. 특수문자 제거 (숫자, 알파벳, 쉼표, 하이픈만 허용)
-    cleaned = re.sub(r'[^0-9a-zA-Z,\-]', '', text)
+    # 2. 오인식 보정 (대소문자 처리 전)
+    # l, I, | -> 1 (i는 a-j 범위이므로 건드리지 않음)
+    text = re.sub(r'[lI|]', '1', text)
+    
+    # 소문자 변환
+    text = text.lower()
+    
+    # 사용자 지정 보정 및 기타 보정
+    # n -> 7
+    text = text.replace('n', '7')
+    # s -> 5
+    text = text.replace('s', '5')
+    # z -> 2
+    text = text.replace('z', '2')
+    # o -> 0 (알파벳 o와 숫자 0)
+    text = text.replace('o', '0')
+    # q -> 9
+    text = text.replace('q', '9')
+    
+    # 3. Whitelist 필터링
+    # 허용: 0-9, a-j
+    # 정규식: [^0-9a-j] 제거
+    cleaned = re.sub(r'[^0-9a-j]', '', text)
     
     # 4. 유효성 검사
     if len(cleaned) == 0:

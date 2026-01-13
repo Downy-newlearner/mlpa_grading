@@ -14,7 +14,7 @@ from botocore.exceptions import ClientError
 from typing import Optional, Dict, Any, List
 from dotenv import load_dotenv
 
-from sqs_schemas import SQSImageUploadMessage
+from id_recog.sqs_schemas import SQSImageUploadMessage
 
 # 로거 설정
 logger = logging.getLogger(__name__)
