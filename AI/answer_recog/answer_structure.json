@@ -1,0 +1,28 @@
+{
+  "examCode": "EXAM_CODE_123",
+  "studentId": "32204659",
+  "total": 100,
+  "status": "completed",
+  "eventType": "ANSWER_RECOGNITION",
+  "answers": [
+    { "questionNumber": 1, "subQuestionNumber": 0, "point": 5, "answerCount": 1, "answerType": "objective", "recAnswer": { "values": [], "confidence": [], "rawText": null } },
+    { "questionNumber": 2, "subQuestionNumber": 0, "point": 5, "answerCount": 1, "answerType": "objective", "recAnswer": { "values": [], "confidence": [], "rawText": null } },
+    { "questionNumber": 3, "subQuestionNumber": 0, "point": 5, "answerCount": 1, "answerType": "objective", "recAnswer": { "values": [], "confidence": [], "rawText": null } },
+    { "questionNumber": 4, "subQuestionNumber": 0, "point": 5, "answerCount": 1, "answerType": "objective", "recAnswer": { "values": [], "confidence": [], "rawText": null } },
+    { "questionNumber": 5, "subQuestionNumber": 0, "point": 5, "answerCount": 1, "answerType": "objective", "recAnswer": { "values": [], "confidence": [], "rawText": null } },
+    { "questionNumber": 6, "subQuestionNumber": 0, "point": 5, "answerCount": 1, "answerType": "objective", "recAnswer": { "values": [], "confidence": [], "rawText": null } },
+    { "questionNumber": 7, "subQuestionNumber": 0, "point": 5, "answerCount": 1, "answerType": "objective", "recAnswer": { "values": [], "confidence": [], "rawText": null } },
+    { "questionNumber": 8, "subQuestionNumber": 0, "point": 5, "answerCount": 1, "answerType": "objective", "recAnswer": { "values": [], "confidence": [], "rawText": null } },
+    { "questionNumber": 9, "subQuestionNumber": 0, "point": 5, "answerCount": 1, "answerType": "objective", "recAnswer": { "values": [], "confidence": [], "rawText": null } },
+    { "questionNumber": 10, "subQuestionNumber": 0, "point": 10, "answerCount": 1, "answerType": "others", "recAnswer": { "values": [], "confidence": [], "rawText": null } },
+    { "questionNumber": 11, "subQuestionNumber": 1, "point": 5, "answerCount": 1, "answerType": "objective", "recAnswer": { "values": [], "confidence": [], "rawText": null } },
+    { "questionNumber": 11, "subQuestionNumber": 2, "point": 5, "answerCount": 1, "answerType": "objective", "recAnswer": { "values": [], "confidence": [], "rawText": null } },
+    { "questionNumber": 11, "subQuestionNumber": 3, "point": 5, "answerCount": 1, "answerType": "objective", "recAnswer": { "values": [], "confidence": [], "rawText": null } },
+    { "questionNumber": 11, "subQuestionNumber": 4, "point": 5, "answerCount": 1, "answerType": "objective", "recAnswer": { "values": [], "confidence": [], "rawText": null } },
+    { "questionNumber": 12, "subQuestionNumber": 0, "point": 5, "answerCount": 1, "answerType": "objective", "recAnswer": { "values": [], "confidence": [], "rawText": null } },
+    { "questionNumber": 13, "subQuestionNumber": 0, "point": 5, "answerCount": 1, "answerType": "objective", "recAnswer": { "values": [], "confidence": [], "rawText": null } },
+    { "questionNumber": 14, "subQuestionNumber": 0, "point": 5, "answerCount": 1, "answerType": "objective", "recAnswer": { "values": [], "confidence": [], "rawText": null } },
+    { "questionNumber": 15, "subQuestionNumber": 0, "point": 5, "answerCount": 1, "answerType": "objective", "recAnswer": { "values": [], "confidence": [], "rawText": null } },
+    { "questionNumber": 16, "subQuestionNumber": 0, "point": 5, "answerCount": 1, "answerType": "objective", "recAnswer": { "values": [], "confidence": [], "rawText": null } }
+  ]
+}
