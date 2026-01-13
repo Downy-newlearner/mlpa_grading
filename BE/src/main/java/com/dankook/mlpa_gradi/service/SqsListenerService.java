@@ -25,69 +25,57 @@ public class SqsListenerService {
     private final S3PresignService s3PresignService;
     private final ObjectMapper objectMapper;
     private final com.dankook.mlpa_gradi.repository.memory.InMemoryReportRepository inMemoryReportRepository;
-    private final StudentAnswerService studentAnswerService;
 
     private int failureCount = 0;
     private static final int MAX_FAILURES = 10;
 
-    @Value("${aws.sqs.id-result-queue-url}")
-    private String idResultQueueUrl;
-
-    @Value("${aws.sqs.answer-result-queue-url}")
-    private String answerResultQueueUrl;
+    @Value("${aws.sqs.queue-url}")
+    private String queueUrl;
 
     @PostConstruct
     public void init() {
-        log.info("🚀 SqsListenerService initialized.");
-        log.info("📡 ID Result Queue: {}", idResultQueueUrl);
-        log.info("📡 Answer Result Queue: {}", answerResultQueueUrl);
+        log.info("🚀 SqsListenerService initialized with Queue URL: {}", queueUrl);
     }
 
-    @Scheduled(fixedDelay = 1000)
+    @Scheduled(fixedDelay = 1000) // Poll every second
     public void pollMessages() {
-        if (failureCount >= MAX_FAILURES)
+        if (failureCount >= MAX_FAILURES) {
+            log.error("SQS polling suspended due to {} consecutive failures. Please check configuration.",
+                    failureCount);
             return;
+        }
 
-        // Poll ID Result Queue
-        pollQueue(idResultQueueUrl);
-
-        // Poll Answer Result Queue
-        pollQueue(answerResultQueueUrl);
-    }
-
-    private void pollQueue(String queueUrl) {
-        if (queueUrl == null || queueUrl.isEmpty())
-            return;
-
+        // log.info("Polling SQS messages from URL: {}", queueUrl); // Too noisy
         ReceiveMessageRequest receiveRequest = ReceiveMessageRequest.builder()
                 .queueUrl(queueUrl)
                 .maxNumberOfMessages(10)
-                .waitTimeSeconds(2)
+                .waitTimeSeconds(5) // Long polling
                 .build();
 
         try {
             List<Message> messages = sqsClient.receiveMessage(receiveRequest).messages();
+            if (!messages.isEmpty()) {
+                log.info("Successfully polled {} messages from SQS", messages.size());
+            }
+            failureCount = 0; // Reset on success
+
             for (Message message : messages) {
                 try {
                     processMessage(message.body());
-                    deleteMessage(queueUrl, message.receiptHandle());
+                    deleteMessage(message.receiptHandle());
                 } catch (Exception e) {
-                    log.error("Error processing SQS message from {}: {}", queueUrl, e.getMessage());
+                    log.error("Error processing SQS message body: {}. Content: {}", e.getMessage(), message.body());
                 }
             }
-            failureCount = 0;
         } catch (Exception e) {
             failureCount++;
-            log.error("Failed to poll SQS [{}]: {}", queueUrl, e.getMessage());
+            log.error("CRITICAL: Failed to poll SQS from URL: {}. Failure count: {}/{}",
+                    queueUrl, failureCount, MAX_FAILURES);
+            log.error("Detailed Exception: ", e);
+            if (e.getMessage().contains("QueueDoesNotExist")) {
+                log.error("Queue does not exist. Please check the URL and AWS Region.");
+            }
         }
-    }
-
-    private void deleteMessage(String queueUrl, String receiptHandle) {
-        DeleteMessageRequest deleteRequest = DeleteMessageRequest.builder()
-                .queueUrl(queueUrl)
-                .receiptHandle(receiptHandle)
-                .build();
-        sqsClient.deleteMessage(deleteRequest);
     }
 
     private void processMessage(String body) throws Exception {
@@ -104,10 +92,6 @@ public class SqsListenerService {
             case "ATTENDANCE_UPLOAD":
                 log.info("📂 Attendance file upload event received. ExamCode: {}, URL: {}", event.get("examCode"),
                         event.get("downloadUrl"));
-                String attExamCode = (String) event.get("examCode");
-                if (attExamCode != null) {
-                    sseService.sendEvent(attExamCode, "attendance_uploaded", event);
-                }
                 break;
             case "ERROR":
                 log.error("🚨 Error event received from AI Server: {}", event.get("message"));
@@ -215,20 +199,14 @@ public class SqsListenerService {
             log.info("[SSE] Broadcasting: {} - {}/{}", examCode, currentProgress, total);
             sseService.updateProgress(examCode, currentProgress, total);
             sseService.sendEvent(examCode, "recognition_update", event);
-
-            // Save answers to DB if present
-            try {
-                if (event.containsKey("answers")) {
-                    @SuppressWarnings("unchecked")
-                    List<Map<String, Object>> answers = (List<Map<String, Object>>) event.get("answers");
-                    if (studentId != null && answers != null && !answers.isEmpty()) {
-                        studentAnswerService.saveRecognitionResults(examCode, studentId, answers);
-                        log.info("[DB] Saved {} answers for student {}", answers.size(), studentId);
-                    }
-                }
-            } catch (Exception e) {
-                log.error("[DB] Failed to save answers for student {}: {}", studentId, e.getMessage());
-            }
         }
+    }
+
+    private void deleteMessage(String receiptHandle) {
+        DeleteMessageRequest deleteRequest = DeleteMessageRequest.builder()
+                .queueUrl(queueUrl)
+                .receiptHandle(receiptHandle)
+                .build();
+        sqsClient.deleteMessage(deleteRequest);
     }
 }
