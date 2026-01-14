@@ -115,6 +115,9 @@ class SQSWorker:
         # 최대 NACK 횟수 (이후 메시지 삭제 및 에러 로깅)
         self._max_nack_count: int = 5
         
+        # 스레드 동기화용 락
+        self._lock = threading.Lock()
+        
         logger.info(f"SQS Worker 초기화 완료: 입력={queue_url}, 결과={self.result_queue_url}")
     
     def set_student_id_callback(self, callback: Callable[[np.ndarray, List[str]], dict]):
@@ -261,7 +264,7 @@ class SQSWorker:
                 WaitTimeSeconds=wait_time_seconds,
                 # ✅ 중요: AI 처리 시간(모델 로딩 및 추론)을 고려하여 5분(300초) 설정
                 # 이 시간 동안은 다른 컨슈머가 이 메시지를 가져가지 못해 중복 수신을 방지합니다.
-                VisibilityTimeout=300,
+                VisibilityTimeout=60,
                 AttributeNames=['All'],
                 MessageAttributeNames=['All']
             )
@@ -352,15 +355,32 @@ class SQSWorker:
     def delete_message(self, receipt_handle: str) -> bool:
         """처리 완료된 메시지 삭제 (입력 큐에서)"""
         try:
-            self.sqs.delete_message(
+            response = self.sqs.delete_message(
                 QueueUrl=self.queue_url,
                 ReceiptHandle=receipt_handle
             )
-            print(f"[SQS_DELETE] ✅ 입력 큐에서 메시지 삭제 완료")
+            request_id = response.get('ResponseMetadata', {}).get('RequestId', 'unknown')
+            print(f"[SQS_DELETE] ✅ 입력 큐에서 메시지 삭제 완료 (RequestId: {request_id})")
+            logger.info(f"SQS 메시지 삭제 완료: RequestId={request_id}")
             return True
         except ClientError as e:
             print(f"[SQS_DELETE] ❌ 메시지 삭제 실패: {e}")
             logger.error(f"SQS 메시지 삭제 실패: {e}")
+            return False
+
+    def change_message_visibility(self, receipt_handle: str, visibility_timeout: int) -> bool:
+        """메시지의 Visibility Timeout 변경 (NACK 시 빠른 재시도용)"""
+        try:
+            self.sqs.change_message_visibility(
+                QueueUrl=self.queue_url,
+                ReceiptHandle=receipt_handle,
+                VisibilityTimeout=visibility_timeout
+            )
+            print(f"[SQS_VISIBILITY] ⏳ VisibilityTimeout 변경 완료: {visibility_timeout}초")
+            return True
+        except ClientError as e:
+            print(f"[SQS_VISIBILITY] ❌ VisibilityTimeout 변경 실패: {e}")
+            logger.error(f"SQS VisibilityTimeout 변경 실패: {e}")
             return False
     
     # =========================================================================
@@ -377,7 +397,10 @@ class SQSWorker:
         # 1. 파일 다운로드
         tmp_path = self.download_file_from_url(msg.download_url, suffix=".xlsx")
         if not tmp_path:
-            return False  # 다운로드 실패는 재시도 가치가 있으므로 False
+            # 다운로드 실패 → 10초 후 재시도
+            print(f"[ATTENDANCE_UPLOAD] ❌ 다운로드 실패, 10초 후 재시도 예약")
+            self.change_message_visibility(msg.receipt_handle, 10)
+            return False
         
         try:
             # 2. 출석부 파싱
@@ -388,12 +411,11 @@ class SQSWorker:
                 from id_recog.parsing_xlsx import parsing_xlsx
                 student_ids = parsing_xlsx(tmp_path)
             
-            # 3. 메모리에 저장
-            self._student_id_lists[msg.exam_code] = student_ids
+            # 3. 메모리에 저장 (Thread-safe)
+            with self._lock:
+                self._student_id_lists[msg.exam_code] = student_ids
+                self.reset_index(msg.exam_code)
             logger.info(f"[ATTENDANCE_UPLOAD] {msg.exam_code}: {len(student_ids)}명 로드 완료")
-            
-            # 4. 해당 시험의 index 카운터 리셋 (새 시험 시작)
-            self.reset_index(msg.exam_code)
             
             return True
             
@@ -407,17 +429,20 @@ class SQSWorker:
         
         # =====================================================================
         # NACK 로직 (재시도 횟수 제한 추가)
-        # =====================================================================
-        student_list = self.get_student_list(msg.exam_code)
+        # =====================================================================        # 1. 출석부 로드 여부 확인 (Thread-safe)
+        with self._lock:
+            student_list = self.get_student_list(msg.exam_code)
+            
         if not student_list:
             # NACK 추적 키 생성
             nack_key = f"{msg.exam_code}:{msg.filename}"
             self._nack_tracker[nack_key] = self._nack_tracker.get(nack_key, 0) + 1
             nack_count = self._nack_tracker[nack_key]
             
-            print(f"[NACK] ⏳ 출석부가 아직 로드되지 않음 (exam={msg.exam_code})")
-            print(f"[NACK] 재시도 횟수: {nack_count}/{self._max_nack_count}")
-            logger.warning(f"[NACK] 출석부 미로드 상태에서 이미지 도착: {msg.exam_code}/{msg.filename} (시도 {nack_count}/{self._max_nack_count})")
+            loaded_exams = list(self._student_id_lists.keys())
+            msg_text = f"[NACK] ⏳ 출석부가 아직 로드되지 않음 (exam={msg.exam_code}, loaded={loaded_exams})"
+            print(msg_text)
+            logger.warning(f"{msg_text}: {msg.exam_code}/{msg.filename} (시도 {nack_count}/{self._max_nack_count})")
             
             # 최대 재시도 횟수 초과 시 메시지 삭제 및 에러 처리
             if nack_count >= self._max_nack_count:
@@ -445,7 +470,9 @@ class SQSWorker:
                 return True
             
             # False 반환 → delete_message()가 호출되지 않음 → VisibilityTimeout 후 재시도
-            print(f"[NACK] 메시지를 삭제하지 않고 재시도 대기 (VisibilityTimeout 후 자동 재시도)")
+            # 여기서 VisibilityTimeout을 짧게(10초) 변경하여 빠른 재시도 유도
+            print(f"[NACK] 메시지를 삭제하지 않고 30초 후 재시도 예약 (ChangeMessageVisibility)")
+            self.change_message_visibility(msg.receipt_handle, 30)
             return False
         
         current_index = self.get_next_index(msg.exam_code)
@@ -547,9 +574,6 @@ class SQSWorker:
             logger.warning(f"알 수 없는 이벤트 타입: {msg.event_type}")
             return False
     
-    # =========================================================================
-    # 답안 인식 이벤트 핸들러
-    # =========================================================================
     # =========================================================================
     # 답안 인식 이벤트 핸들러
     # =========================================================================
@@ -919,18 +943,21 @@ class SQSWorker:
                 poll_count += 1
                 timestamp = datetime.datetime.now().strftime("%H:%M:%S.%f")[:-3]
                 
+                q_name = self.queue_url.split('/')[-1]
+                timestamp = datetime.datetime.now().strftime("%H:%M:%S.%f")[:-3]
+                
                 # =========================================================
                 # [POLL_START] 폴링 시작 전 상태
                 # =========================================================
                 before_available, before_in_flight = self._get_queue_status()
-                print(f"\n{'='*60}")
-                print(f"[POLL #{poll_count}] {timestamp} 폴링 시작")
-                print(f"[POLL_BEFORE] 대기: {before_available}, 처리중: {before_in_flight}")
+                print(f"\n[{q_name}] {'='*40}")
+                print(f"[{q_name}] [POLL #{poll_count}] {timestamp} 폴링 시작")
+                print(f"[{q_name}] [POLL_BEFORE] 대기: {before_available}, 처리중: {before_in_flight}")
                 
                 # =========================================================
                 # [POLL_WAIT] Long Polling 수행 (최대 20초)
                 # =========================================================
-                print(f"[POLL_WAIT] Long Polling 대기 중... (최대 20초)")
+                print(f"[{q_name}] [POLL_WAIT] Long Polling 대기 중... (최대 20초)")
                 msg = self.receive_message(wait_time_seconds=20)
                 
                 poll_end_timestamp = datetime.datetime.now().strftime("%H:%M:%S.%f")[:-3]
@@ -939,31 +966,22 @@ class SQSWorker:
                 # [POLL_RESULT] 폴링 결과
                 # =========================================================
                 if msg is None:
-                    print(f"[POLL_RESULT] {poll_end_timestamp} 메시지 없음 (타임아웃 또는 빈 큐)")
+                    print(f"[{q_name}] [POLL_RESULT] {poll_end_timestamp} 메시지 없음")
                 else:
-                    print(f"[POLL_RESULT] {poll_end_timestamp} ✅ 메시지 수신!")
-                    print(f"[POLL_RESULT] event={msg.event_type}, exam={msg.exam_code}, file={msg.filename}")
+                    print(f"[{q_name}] [POLL_RESULT] {poll_end_timestamp} ✅ 메시지 수신! ({msg.event_type})")
                 
                 # =========================================================
                 # [POLL_AFTER] 폴링 후 상태 비교
                 # =========================================================
                 after_available, after_in_flight = self._get_queue_status()
-                delta_available = after_available - before_available
                 delta_in_flight = after_in_flight - before_in_flight
                 
-                print(f"[POLL_AFTER] 대기: {after_available} ({delta_available:+d}), 처리중: {after_in_flight} ({delta_in_flight:+d})")
+                print(f"[{q_name}] [POLL_AFTER] 대기: {after_available}, 처리중: {after_in_flight} ({delta_in_flight:+d})")
                 
-                # ⚠️ 이상 감지: AI가 메시지를 안 받았는데 처리중이 증가?
                 if msg is None and delta_in_flight > 0:
-                    print(f"[⚠️ ANOMALY] AI가 receive 안 했는데 처리중이 +{delta_in_flight} 증가!")
-                    print(f"[⚠️ ANOMALY] 다른 컨슈머(BE/Lambda)가 폴링 중일 가능성 높음")
+                    print(f"[{q_name}] [⚠️ ANOMALY] AI가 안 받았는데 처리중 +{delta_in_flight} 증가! (외부 간섭)")
                 
-                # AI가 1개 받았는데 처리중이 2개 이상 증가?
-                if msg is not None and delta_in_flight > 1:
-                    print(f"[⚠️ ANOMALY] AI가 1개 receive 했는데 처리중이 +{delta_in_flight} 증가!")
-                    print(f"[⚠️ ANOMALY] 동시에 다른 컨슈머도 receive 했을 가능성")
-                
-                print(f"{'='*60}")
+                print(f"[{q_name}] {'='*40}")
                 
                 if msg is None:
                     continue

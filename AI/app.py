@@ -48,6 +48,7 @@ class ModelStore:
     vlm_client = None
     s3_manager = None
     sqs_worker = None
+    attendance_worker = None
     
     # 답안 인식용
     answer_pipeline = None
@@ -145,21 +146,54 @@ async def lifespan(app: FastAPI):
         from id_recog.student_id_pipeline import extract_student_id
         
         queue_url = os.environ.get("SQS_QUEUE_URL")
+        attendance_queue_url = os.environ.get("SQS_ATTENDANCE_QUEUE_URL")
         result_queue_url = os.environ.get("SQS_QUEUE_URL2")
         fallback_queue_url = os.environ.get("SQS_QUEUE_URL3")
         aws_key = os.environ.get("AWS_ACCESS_KEY_ID")
         aws_secret = os.environ.get("AWS_SECRET_ACCESS_KEY")
         
+        region = os.environ.get("AWS_DEFAULT_REGION", "ap-northeast-2")
+        bucket = os.environ.get("S3_BUCKET", "mlpa-gradi")
+        
         if queue_url and aws_key and aws_secret:
+            # 1. 메인 워커 (학번/답안 인식 전용)
             worker = init_sqs_worker(
                 queue_url=queue_url,
                 aws_access_key_id=aws_key,
                 aws_secret_access_key=aws_secret,
-                region_name=os.environ.get("AWS_DEFAULT_REGION", "ap-northeast-2"),
-                s3_bucket=os.environ.get("S3_BUCKET", "mlpa-gradi"),
+                region_name=region,
+                s3_bucket=bucket,
                 result_queue_url=result_queue_url,
                 fallback_queue_url=fallback_queue_url
             )
+            
+            # 2. 출석부 전용 워커 (있을 경우)
+            if attendance_queue_url:
+                print(f"  ✓ 출석부 전용 워커 초기화 중... ({attendance_queue_url})")
+                from id_recog.sqs_worker import SQSWorker
+                att_worker = SQSWorker(
+                    queue_url=attendance_queue_url,
+                    aws_access_key_id=aws_key,
+                    aws_secret_access_key=aws_secret,
+                    region_name=region,
+                    s3_bucket=bucket,
+                    result_queue_url=result_queue_url
+                )
+                # 중요: 두 워커가 학번 리스트 메모리를 공유하도록 설정
+                att_worker._student_id_lists = worker._student_id_lists
+                att_worker._index_counters = worker._index_counters
+                
+                # 출석부 워커 전용 콜백 설정
+                def attendance_callback(file_path: str) -> list:
+                    from id_recog.parsing_xlsx import parsing_xlsx
+                    ids = parsing_xlsx(file_path)
+                    print(f"  ✓ [ATTENDANCE_WORKER] 출석부 파싱 완료: {len(ids)}명 로드됨")
+                    return ids
+                
+                att_worker.set_attendance_callback(attendance_callback)
+                att_worker.start()
+                ModelStore.attendance_worker = att_worker
+                print(f"  ✓ 출석부 전용 워커 시작됨 (Callback 설정 완료)")
             
             # 학번 추출 콜백 설정
             def student_id_callback(image: np.ndarray, student_list: list) -> dict:
@@ -230,6 +264,8 @@ async def lifespan(app: FastAPI):
     print("서버 종료...")
     if ModelStore.sqs_worker:
         ModelStore.sqs_worker.stop()
+    if ModelStore.attendance_worker:
+        ModelStore.attendance_worker.stop()
 
 
 # =============================================================================
@@ -313,12 +349,20 @@ async def health():
             "loadedExams": list(ModelStore.sqs_worker._student_id_lists.keys())
         }
     
+    att_worker_status = {}
+    if ModelStore.attendance_worker:
+        att_worker_status = {
+            "running": ModelStore.attendance_worker.is_running,
+            "queue": ModelStore.attendance_worker.queue_url
+        }
+    
     return {
         "layoutModel": ModelStore.layout_model is not None,
         "ocrModel": ModelStore.ocr_model is not None,
         "vlmClient": ModelStore.vlm_client is not None,
         "s3Client": ModelStore.s3_manager is not None and ModelStore.s3_manager.is_ready,
         "sqsWorker": worker_status,
+        "attendanceWorker": att_worker_status,
         "answerPipeline": ModelStore.answer_pipeline is not None
     }
 
