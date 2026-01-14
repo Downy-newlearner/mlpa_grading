@@ -278,32 +278,36 @@ public class S3PresignService {
 
         /**
          * ✅ 특정 학생의 채점 이미지 Presigned URL 목록 조회
+         * "answer/{exam code}/{학번}/..." 경로를 먼저 조회하고 없으면 기존 "uploads/..." 조회
          */
         public java.util.List<String> getStudentImageUrls(String examCode, String studentId) {
-                String folderPrefix = String.format("%s/%s/", prefix, examCode);
+                String answerPrefix = String.format("answer/%s/%s/", examCode, studentId);
+                log.info("🔍 Searching for student images in: {}", answerPrefix);
 
                 ListObjectsV2Request listRequest = ListObjectsV2Request.builder()
                                 .bucket(bucket)
-                                .prefix(folderPrefix)
+                                .prefix(answerPrefix)
                                 .build();
 
                 ListObjectsV2Response listResponse = s3Client.listObjectsV2(listRequest);
 
+                if (listResponse.contents().isEmpty()) {
+                        log.info("ℹ️ No images in {}, falling back to uploads/ prefix", answerPrefix);
+                        String uploadsPrefix = String.format("%s/%s/", prefix, examCode);
+                        listRequest = ListObjectsV2Request.builder()
+                                        .bucket(bucket)
+                                        .prefix(uploadsPrefix)
+                                        .build();
+                        listResponse = s3Client.listObjectsV2(listRequest);
+
+                        return listResponse.contents().stream()
+                                        .filter(obj -> obj.key().contains(studentId))
+                                        .map(obj -> generatePresignedGetUrl(obj.key()))
+                                        .toList();
+                }
+
                 return listResponse.contents().stream()
-                                .filter(obj -> obj.key().contains(studentId)) // 파일명에 학번이 포함된 경우 필터링
-                                .map(obj -> {
-                                        GetObjectRequest getObjectRequest = GetObjectRequest.builder()
-                                                        .bucket(bucket)
-                                                        .key(obj.key())
-                                                        .build();
-
-                                        GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
-                                                        .signatureDuration(Duration.ofMinutes(10))
-                                                        .getObjectRequest(getObjectRequest)
-                                                        .build();
-
-                                        return presigner.presignGetObject(presignRequest).url().toString();
-                                })
+                                .map(obj -> generatePresignedGetUrl(obj.key()))
                                 .toList();
         }
 

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useRef, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 type FeedbackItem = {
     id: string;
@@ -10,6 +10,8 @@ type FeedbackItem = {
 };
 
 const FeedbackPage: React.FC<{ examCode?: string }> = ({ examCode = "ND1FHG" }) => {
+    const searchParams = useSearchParams();
+    const total = searchParams.get("total") || "";
     const [items, setItems] = useState<FeedbackItem[]>([]);
     const [focusedIndex, setFocusedIndex] = useState(0);
     const [zoomedImage, setZoomedImage] = useState<string | null>(null);
@@ -296,7 +298,7 @@ const FeedbackPage: React.FC<{ examCode?: string }> = ({ examCode = "ND1FHG" }) 
                         localStorage.removeItem(`gradi_draft_${examCode}`);
 
                         // Navigate immediately for better UX
-                        router.push(`/exam/${examCode}/loading/question`);
+                        router.push(`/exam/${examCode}/loading/question?total=${total}`);
 
                         // If there are items, send to backend in background (fire-and-forget)
                         if (items.length > 0) {
@@ -320,7 +322,7 @@ const FeedbackPage: React.FC<{ examCode?: string }> = ({ examCode = "ND1FHG" }) 
                             console.log("[FeedbackPage] Sending payload in background:", payload);
 
                             // Fire-and-forget: Don't await
-                            fetch("/api/feedback", {
+                            fetch("/api/student/id/feedback", {
                                 method: "POST",
                                 headers: { "Content-Type": "application/json" },
                                 body: JSON.stringify(payload)

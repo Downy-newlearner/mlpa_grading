@@ -1,6 +1,7 @@
 import React from "react";
 import { Question, SubQuestion, QuestionType } from "../../types";
 import { SubQuestionItem } from "./SubQuestionItem";
+import { TypeSelector } from "./TypeSelector";
 
 interface QuestionItemProps {
     question: Question;
@@ -23,6 +24,7 @@ interface QuestionItemProps {
     updateSubQuestion: (qId: string, sqId: string, patch: Partial<Omit<SubQuestion, "id">>) => void;
     questionsLength: number;
     numberingPreview: any;
+    handleKeyDown: (e: React.KeyboardEvent, index: number, isSub?: boolean, subIndex?: number) => void;
 }
 
 const PlusIcon = () => (
@@ -99,7 +101,10 @@ export const QuestionItem: React.FC<QuestionItemProps> = (props) => {
                                 : "정답을 입력하세요"
                         }
                         disabled={q.subQuestions.length > 0}
+                        id={`q-input-${qIndex}`}
+                        onKeyDown={(e) => props.handleKeyDown(e, qIndex)}
                         onChange={(e) => updateQuestion(q.id, { text: e.target.value })}
+                        onFocus={(e) => e.target.scrollIntoView({ behavior: 'smooth', block: 'center' })}
                     />
                 </div>
 
@@ -112,7 +117,15 @@ export const QuestionItem: React.FC<QuestionItemProps> = (props) => {
                             className={`w-full border border-black p-2 rounded focus:outline-none focus:ring focus:ring-purple-300 bg-white ${q.subQuestions.length > 0 ? "bg-gray-100" : ""}`}
                             value={q.score}
                             readOnly={q.subQuestions.length > 0}
+                            onKeyDown={(e) => {
+                                // Prevent number change properly on arrow keys if we want navigation
+                                if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                                    e.preventDefault();
+                                }
+                                props.handleKeyDown(e, qIndex);
+                            }}
                             onFocus={(e) => {
+                                e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
                                 if (q.score === 0 || q.score === "0") {
                                     updateQuestion(q.id, { score: "" });
                                 }
@@ -126,17 +139,12 @@ export const QuestionItem: React.FC<QuestionItemProps> = (props) => {
                         />
                     </div>
 
-                    <div>
-                        <label className="block text-sm font-semibold mb-1">문제 유형<span className="text-red-500">*</span></label>
-                        <select
-                            className="w-full border border-black p-2 rounded focus:outline-none focus:ring focus:ring-purple-300 bg-white cursor-pointer"
+                    <div className="md:col-span-2" onFocus={(e) => (e.currentTarget as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'center' })}>
+                        <label className="block text-sm font-semibold mb-2">문제 유형<span className="text-red-500">*</span></label>
+                        <TypeSelector
                             value={q.type}
-                            onChange={(e) => updateQuestion(q.id, { type: e.target.value as QuestionType })}
-                        >
-                            <option value="multiple">객관식</option>
-                            <option value="short">단답형</option>
-                            <option value="ox">OX</option>
-                        </select>
+                            onChange={(val) => updateQuestion(q.id, { type: val })}
+                        />
                     </div>
                 </div>
             </div>
@@ -175,6 +183,7 @@ export const QuestionItem: React.FC<QuestionItemProps> = (props) => {
                                 insertSubQuestion={props.insertSubQuestion}
                                 removeSubQuestion={props.removeSubQuestion}
                                 updateSubQuestion={props.updateSubQuestion}
+                                handleKeyDown={props.handleKeyDown}
                             />
                         ))}
                     </div>

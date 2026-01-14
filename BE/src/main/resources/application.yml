@@ -4,13 +4,7 @@
     encoding:
       charset: UTF-8
 
-app:
-  frontend:
-    url: ${FRONTEND_URL:http://localhost:3000}
-
 spring:
-  config:
-    import: "optional:file:application-aws.yml,optional:file:application-local.yml"
   datasource:
     url: ${MYSQL_URL}
     username: ${MYSQL_USER}
@@ -18,37 +12,41 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
+    show-sql: ${SPRING_JPA_SHOW_SQL:true}
     properties:
       hibernate:
         format_sql: true
-        show_sql: true
-  servlet:
-    multipart:
-      max-file-size: 100MB
-      max-request-size: 200MB
-
-fastApi:
-  service:
-    url: ${FASTAPI_URL}
+  mail:
+    host: ${SPRING_MAIL_HOST}
+    port: ${SPRING_MAIL_PORT}
+    username: ${SPRING_MAIL_USERNAME}
+    password: ${SPRING_MAIL_PASSWORD}
+    default-encoding: ${SPRING_MAIL_DEFAULT_ENCODING:UTF-8}
+    properties:
+      mail:
+        smtp:
+          auth: ${SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH:true}
+          starttls:
+            enable: ${SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE:true}
 
 aws:
-  s3:
-    bucket: ${aws.s3.bucket}
-  sqs:
-    queue-url: ${AWS_SQS_QUEUE_URL}
-  endpoint: ${AWS_ENDPOINT}
   credentials:
-    access-key: ${AWS_ACCESS_KEY}
-    secret-key: ${AWS_SECRET_KEY}
+    access-key: ${AWS_ACCESS_KEY_ID}
+    secret-key: ${AWS_SECRET_ACCESS_KEY}
   region:
-    static: ${AWS_REGION_STATIC:ap-northeast-2}
-
-  sts:
-    account-id: ${AWS_ACCOUNT_ID}
-    role-name: ${AWS_ROLE_NAME}
-    region: ap-northeast-2
+    static: ${AWS_REGION:ap-northeast-2}
+  s3:
+    bucket: ${S3_BUCKET}
+  sqs:
+    id-result-queue-url: ${SQS_ID_RESULT_QUEUE_URL}
+    answer-result-queue-url: ${SQS_ANSWER_RESULT_QUEUE_URL}
+    grading-request-queue-url: ${SQS_GRADING_REQUEST_QUEUE_URL}
 
 ai:
   server:
     url: ${AI_SERVER_URL}
+
+app:
+  frontend:
+    url: ${FRONTEND_URL:http://localhost:3000}

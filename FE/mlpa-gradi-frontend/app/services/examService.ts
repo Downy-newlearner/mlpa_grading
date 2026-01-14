@@ -47,9 +47,10 @@ export const examService = {
         return response.json();
     },
 
-    // ✅ SSE 연결 (examCode 기반)
+    // ✅ SSE 연결 (examCode 기반) - 직접 연결로 프록시 버퍼링 우회
     connectSSE(examCode: string): EventSource {
-        const eventSource = new EventSource(`${API_BASE}/storage/sse/connect?examCode=${examCode}`);
+        // Next.js 프록시는 SSE 스트리밍에 버퍼링 문제를 일으킬 수 있어 직접 연결
+        const eventSource = new EventSource(`http://127.0.0.1:8080/api/storage/sse/connect?examCode=${examCode}`);
         return eventSource;
     },
 
@@ -127,5 +128,13 @@ export const examService = {
             method: "DELETE",
         });
         if (!response.ok) throw new Error("Failed to stop process");
+    },
+
+    // ✅ 문항 인식 프록시 결과 요청 (AI 서버 -> DB 저장 트리거)
+    async triggerQuestionProxy(examCode: string): Promise<void> {
+        const response = await fetch(`${API_BASE}/questions/proxy/${examCode}`, {
+            method: "POST",
+        });
+        if (!response.ok) throw new Error("Failed to trigger question proxy");
     }
 };

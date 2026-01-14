@@ -11,11 +11,11 @@ type FeedbackItem = {
     correctAnswer: string;  // 수정된 정답
 };
 
-interface QuestionFeedbackPageProps {
+interface RecognitionFallbackPageProps {
     examCode?: string;
 }
 
-const QuestionFeedbackPage: React.FC<QuestionFeedbackPageProps> = ({ examCode = "UNKNOWN" }) => {
+const RecognitionFallbackPage: React.FC<RecognitionFallbackPageProps> = ({ examCode = "UNKNOWN" }) => {
     const [items, setItems] = useState<FeedbackItem[]>([]);
     const [focusedIndex, setFocusedIndex] = useState(0);
     const [zoomedImage, setZoomedImage] = useState<string | null>(null);
@@ -31,6 +31,33 @@ const QuestionFeedbackPage: React.FC<QuestionFeedbackPageProps> = ({ examCode = 
     // ✅ Load from API & localStorage draft
     useEffect(() => {
         const fetchUnknownQuestions = async () => {
+            if (examCode === "MOCK_DATA") {
+                setItems([
+                    {
+                        id: "1",
+                        imageUrl: "https://via.placeholder.com/600x300?text=Question+1+Image", // Placeholder or local asset if available
+                        questionNumber: "1",
+                        recognizedAnswer: "3",
+                        correctAnswer: ""
+                    },
+                    {
+                        id: "2",
+                        imageUrl: "https://via.placeholder.com/600x300?text=Question+2+Image",
+                        questionNumber: "2",
+                        recognizedAnswer: "Unknown",
+                        correctAnswer: ""
+                    },
+                    {
+                        id: "3",
+                        imageUrl: "",
+                        questionNumber: "3",
+                        recognizedAnswer: "1",
+                        correctAnswer: "1"
+                    }
+                ]);
+                return;
+            }
+
             try {
                 // TODO: Replace with actual API endpoint for unknown questions
                 const response = await fetch(`/api/reports/unknown-questions/${examCode}`);
@@ -78,18 +105,32 @@ const QuestionFeedbackPage: React.FC<QuestionFeedbackPageProps> = ({ examCode = 
         localStorage.setItem(`gradi_question_draft_${examCode}`, JSON.stringify(draft));
     }, [items, examCode]);
 
+    const scrollToItem = (index: number) => {
+        // Find the element by ID or ref? We are assigning refs to inputs.
+        // Better to scroll the container div. Let's assign refs to row containers.
+    };
+
     const handleKeyDown = (e: React.KeyboardEvent, index: number) => {
         if (e.key === "ArrowDown" || (e.key === "Enter" && !e.shiftKey)) {
             e.preventDefault();
             const nextIndex = Math.min(index + 1, items.length - 1);
-            setFocusedIndex(nextIndex);
-            inputRefs.current[nextIndex]?.focus();
+            changeFocus(nextIndex);
         } else if (e.key === "ArrowUp") {
             e.preventDefault();
             const prevIndex = Math.max(index - 1, 0);
-            setFocusedIndex(prevIndex);
-            inputRefs.current[prevIndex]?.focus();
+            changeFocus(prevIndex);
         }
+    };
+
+    const changeFocus = (index: number) => {
+        setFocusedIndex(index);
+        inputRefs.current[index]?.focus();
+
+        // Scroll into view
+        inputRefs.current[index]?.closest('.relative')?.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center'
+        });
     };
 
     const handleInputChange = (index: number, value: string) => {
@@ -424,4 +465,4 @@ const QuestionFeedbackPage: React.FC<QuestionFeedbackPageProps> = ({ examCode = 
     );
 };
 
-export default QuestionFeedbackPage;
+export default RecognitionFallbackPage;

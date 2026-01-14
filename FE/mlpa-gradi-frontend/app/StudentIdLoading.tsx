@@ -194,7 +194,7 @@ const StudentIdLoading: React.FC<StudentIdLoadingProps> = ({
 
     if (error) {
         return (
-            <div className="relative w-[1152px] h-[700px] bg-white mx-auto flex flex-col justify-center items-center p-10 text-center">
+            <div className="relative w-full min-h-screen bg-white mx-auto flex flex-col justify-center items-center p-10 text-center">
                 <p className="text-red-500 text-[36px] font-bold leading-tight mb-4">
                     🚨 인식 오류 발생
                 </p>
@@ -226,7 +226,7 @@ const StudentIdLoading: React.FC<StudentIdLoadingProps> = ({
 
     if (timedOut) {
         return (
-            <div className="relative w-[1152px] h-[700px] bg-white mx-auto flex flex-col justify-center items-center">
+            <div className="relative w-full min-h-screen bg-white mx-auto flex flex-col justify-center items-center">
                 <p className="text-black text-[36px] font-bold leading-tight mb-4">
                     ⚠️ 연결 시간 초과
                 </p>
@@ -244,7 +244,7 @@ const StudentIdLoading: React.FC<StudentIdLoadingProps> = ({
     }
 
     return (
-        <div className="relative w-[1152px] h-[700px] bg-white mx-auto flex flex-col justify-center items-center">
+        <div className="relative w-full min-h-screen bg-white mx-auto flex flex-col justify-center items-center">
             {/* Deleting Overlay */}
             {isDeleting && (
                 <div className="absolute inset-0 z-50 bg-white/90 flex flex-col items-center justify-center">

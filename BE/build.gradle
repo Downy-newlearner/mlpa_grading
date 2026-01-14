@@ -43,9 +43,13 @@ dependencies {
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
 
+    implementation 'org.springframework.boot:spring-boot-starter-cache'
+    implementation 'com.github.ben-manes.caffeine:caffeine'
+
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     implementation 'com.fasterxml.jackson.core:jackson-databind'
     runtimeOnly 'com.mysql:mysql-connector-j'
+    implementation 'io.github.cdimascio:dotenv-java:3.0.0'
 }
 
 

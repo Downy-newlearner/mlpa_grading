@@ -33,7 +33,7 @@ const RecognitionLoading: React.FC<RecognitionLoadingProps> = ({ examCode = "ND1
     }, [studentCount]);
 
     return (
-        <div className="relative w-[1152px] h-[700px] bg-white mx-auto flex flex-col justify-center items-center">
+        <div className="relative w-full min-h-screen bg-white mx-auto flex flex-col justify-center items-center">
             {/* Gradi Logo */}
             <div
                 className="absolute top-[30px] left-[30px] w-[120px] h-[32px]"

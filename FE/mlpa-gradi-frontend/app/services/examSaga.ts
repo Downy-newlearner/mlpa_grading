@@ -173,6 +173,36 @@ export const uploadAttendanceStep: SagaStep<ExamSagaContext> = {
     }
 };
 
+// Step 3.5: 출석부 처리 확인 (ACK 대기)
+export const waitForAttendanceAckStep: SagaStep<ExamSagaContext> = {
+    name: "출석부 처리 대기",
+    async execute(ctx) {
+        if (!ctx.eventSource || !ctx.examCode) return;
+
+        ctx.onProgress?.("출석부 처리 확인 중...");
+
+        await new Promise<void>((resolve, reject) => {
+            const timeoutMs = 5000; // 5초로 단축 (기존 30초)
+            const timer = setTimeout(() => {
+                console.warn("⚠️ Attendance ACK timeout. Proceeding anyway.");
+                resolve(); // 타임아웃 시 진행 (무한 대기 방지)
+            }, timeoutMs);
+
+            const handler = (event: MessageEvent) => {
+                console.log("✅ Attendance processed by AI/Server");
+                clearTimeout(timer);
+                ctx.eventSource?.removeEventListener("attendance_uploaded", handler);
+                resolve();
+            };
+
+            ctx.eventSource?.addEventListener("attendance_uploaded", handler);
+        });
+    },
+    async compensate(ctx) {
+        // No compensation needed
+    }
+};
+
 // Step 4: 이미지 업로드
 export const uploadImagesStep: SagaStep<ExamSagaContext> = {
     name: "이미지 업로드",
@@ -204,6 +234,9 @@ export const uploadImagesStep: SagaStep<ExamSagaContext> = {
 
             if (file) {
                 ctx.onProgress?.(`이미지 업로드 중 (${i + 1}/${total})`);
+
+                // ✅ UI 렌더링을 위한 짧은 딜레이 (React가 상태를 반영할 시간 확보)
+                await new Promise(resolve => setTimeout(resolve, 10));
 
                 // Match the normalization used in the backend (S3PresignService.java)
                 let contentType = file.file.type || "image/jpeg";

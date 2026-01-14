@@ -87,6 +87,119 @@ export const QuestionList: React.FC<QuestionListProps> = ({
         e.preventDefault();
     };
 
+    // Keyboard Navigation
+    const handleKeyDown = (e: React.KeyboardEvent, index: number, isSub: boolean = false, subIndex: number = -1) => {
+        if (e.key === "Enter" || e.key === "ArrowDown") {
+            e.preventDefault();
+            // Try to find next input
+            // 1. If currently Main, check if Sub exists -> Sub 0
+            // 2. Else check Next Question Main
+
+            // Simplified logic as per user request "move to next question"
+            // We will try to focus the next logical input.
+            // ID convention:
+            // Main: `q-input-${qIndex}`
+            // Sub: `sub-input-${qIndex}-${sIndex}`
+
+            let nextId = "";
+            const currentQ = questions[index];
+
+            if (!isSub) {
+                // Current is Main
+                if (currentQ.subQuestions.length > 0) {
+                    // Go to first sub
+                    nextId = `sub-input-${index}-0`;
+                } else {
+                    // Go to next question
+                    if (index < questions.length - 1) {
+                        const nextQ = questions[index + 1];
+                        if (nextQ.subQuestions.length > 0) {
+                            nextId = `sub-input-${index + 1}-0`;
+                        } else {
+                            nextId = `q-input-${index + 1}`;
+                        }
+                    }
+                }
+            } else {
+                // Current is Sub
+                if (subIndex < currentQ.subQuestions.length - 1) {
+                    // Next sub
+                    nextId = `sub-input-${index}-${subIndex + 1}`;
+                } else {
+                    // Next question
+                    if (index < questions.length - 1) {
+                        const nextQ = questions[index + 1];
+                        if (nextQ.subQuestions.length > 0) {
+                            nextId = `sub-input-${index + 1}-0`;
+                        } else {
+                            nextId = `q-input-${index + 1}`;
+                        }
+                    }
+                }
+            }
+
+            if (nextId) {
+                const el = document.getElementById(nextId);
+                if (el) {
+                    el.focus();
+                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                } else {
+                    console.warn("Navigation target not found:", nextId);
+                }
+            }
+        } else if (e.key === "ArrowUp") {
+            e.preventDefault();
+            // Reverse logic
+            let prevId = "";
+
+            if (isSub) {
+                if (subIndex > 0) {
+                    prevId = `sub-input-${index}-${subIndex - 1}`;
+                } else {
+                    // Back to Main (if enabled? usually disabled if sub exists)
+                    // If main is disabled, go to Prev Question Last Sub or Prev Question Main
+                    // Actually main text is disabled but focused? No usually pointer-events-none?
+                    // Let's assume we can focus Main even if disabled? No.
+
+                    // If Main is Disabled (has sub), we should treat Main as "header" but not input.
+                    // So we go to Prev Question
+                    if (questions[index].subQuestions.length > 0) {
+                        // Main is disabled. Go to Prev Question.
+                        if (index > 0) {
+                            const prevQ = questions[index - 1];
+                            if (prevQ.subQuestions.length > 0) {
+                                prevId = `sub-input-${index - 1}-${prevQ.subQuestions.length - 1}`;
+                            } else {
+                                prevId = `q-input-${index - 1}`;
+                            }
+                        }
+                    } else {
+                        // Main is enabled (shouldn't happen if I am in Sub)
+                        prevId = `q-input-${index}`;
+                    }
+                }
+            } else {
+                // Current is Main
+                if (index > 0) {
+                    const prevQ = questions[index - 1];
+                    if (prevQ.subQuestions.length > 0) {
+                        prevId = `sub-input-${index - 1}-${prevQ.subQuestions.length - 1}`;
+                    } else {
+                        prevId = `q-input-${index - 1}`;
+                    }
+                }
+            }
+
+            if (prevId) {
+                const el = document.getElementById(prevId);
+                if (el) {
+                    el.focus();
+                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            }
+        }
+    };
+
     return (
         <div className="mb-6 pt-12">
             <div className="flex justify-between items-end mb-8">
@@ -115,6 +228,7 @@ export const QuestionList: React.FC<QuestionListProps> = ({
                         updateSubQuestion={updateSubQuestion}
                         questionsLength={questions.length}
                         numberingPreview={numberingPreview}
+                        handleKeyDown={handleKeyDown}
                     />
                 ))}
             </div>
